@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Escenario Multi-Show MIDI</title>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, collection, getDoc, deleteDoc, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            authDomain: "family-game-show.firebaseapp.com",
+            projectId: "family-game-show",
+            storageBucket: "family-game-show.firebasestorage.app",
+            messagingSenderId: "509983775898",
+            appId: "1:509983775898:web:47695f5b312553d9bd1323",
+            measurementId: "G-P941BVG2ST"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let numerosSalidos = [];
+        let temasDisponiblesCodigos = [];
+        let repActivoId = "";
+        let showEnVivoActivo = false;
+        let modoTransmisionActual = "automatico";
+        const audioSirena = new Audio('https://assets.mixkit.co/active_storage/sfx/911/911-84.wav');
+
+        let primerPedidoIdDisponible = null;
+        let primerPedidoCodigoPuro = null;
+
+        async function cargarRepertoriosEnSelector() {
+            const selector = document.getElementById('selectRepertorioNoche'); if(!selector) return;
+            try {
+                const querySnapshot = await getDocs(collection(db, "repertorios"));
+                selector.innerHTML = '<option value="">-- Seleccionar Lista --</option>';
+                querySnapshot.forEach((docSnap) => {
+                    let data = docSnap.data();
+                    let option = document.createElement('option');
+                    option.value = docSnap.id;
+                    option.innerText = data.nombre_show ? data.nombre_show.toUpperCase() : docSnap.id.toUpperCase();
+                    
+                    if(docSnap.id === repActivoId) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+            } catch(e) { console.error("Error cargando selectores:", e); }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarRepertoriosEnSelector();
+        });
+
+        // 🔄 DETECTOR EN VIVO DEL ESTADO DEL SHOW
+        onSnapshot(doc(db, "estado_show", "actual"), async (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+
+                // 🎯 Muestra el nombre real del show desde id_show_activo
+                const showReal = data.id_show_activo || data.repertorio_activo || "SHOW ACTIVO";
+                const lblBadge = document.getElementById('lblNombreDelShowAbierto');
+                if (lblBadge) {
+                    lblBadge.innerText = String(showReal).toUpperCase();
+                }
+
+                numerosSalidos = (data.lista_numeros_salidos || []).map(String);
+                showEnVivoActivo = data.show_iniciado === true;
+                modoTransmisionActual = data.modo_transmision || "automatico";
+
+                // Actualizar interruptor de Modo
+                const radioVivo = document.getElementById('radioModoVivo');
+                const radioAuto = document.getElementById('radioModoAuto');
+                if (radioVivo && radioAuto) {
+                    if (modoTransmisionActual === "vivo") {
+                        radioVivo.checked = true;
+                    } else {
+                        radioAuto.checked = true;
+                    }
+                }
+
+                // Actualizar botón visual de Play/Pausa
+                const btnToggle = document.getElementById('btnTogglePlayShow');
+                if (btnToggle) {
+                    if (showEnVivoActivo) {
+                        btnToggle.innerText = "⏸️ PAUSAR SHOW (MODO ESPERA)";
+                        btnToggle.style.background = "linear-gradient(90deg, #ff9f1c, #e63946)";
+                        btnToggle.style.color = "#fff";
+                    } else {
+                        btnToggle.innerText = "▶️ HABILITAR SHOW EN VIVO (PLAY)";
+                        btnToggle.style.background = "linear-gradient(90deg, #2ec4b6, #00f5d4)";
+                        btnToggle.style.color = "#000";
+                    }
+                }
+                
+                if (repActivoId !== (data.repertorio_activo || "")) {
+                    repActivoId = data.repertorio_activo || "";
+                    cargarRepertoriosEnSelector();
+                }
+                
+                document.getElementById('lblTotalCantados').innerText = numerosSalidos.length;
+                let ult = data.ultima_cancion_tocada || 0;
+                document.getElementById('lblUltimaBola').innerText = ult > 0 ? String(ult).padStart(3, '0') : "000";
+
+                if (repActivoId) {
+                    const repSnap = await getDoc(doc(db, "repertorios", repActivoId));
+                    if (repSnap.exists()) { 
+                        temasDisponiblesCodigos = Object.keys(repSnap.data().canciones || {}).map(String); 
+                    }
+                }
+            }
+        });
+
+        window.toggleEstadoShowPlay = async function() {
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    show_iniciado: !showEnVivoActivo
+                });
+            } catch(e) {
+                console.error("Error al alternar estado del show:", e);
+                alert("Error al alternar el estado del show.");
+            }
+        };
+
+        window.cambiarModoTransmision = async function(nuevoModo) {
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    modo_transmision: nuevoModo
+                });
+            } catch(e) {
+                console.error("Error al cambiar modo de transmisión:", e);
+                alert("Error al guardar el modo.");
+            }
+        };
+
+        window.dispararDespedidaFinalShow = async function() {
+            if(!confirm("¿Querés reproducir el video de despedida y cierre en todos los cartones?")) return;
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    ultima_cancion_tocada: 999,
+                    show_iniciado: false
+                });
+                alert("🎬 Video de despedida disparado en todas las pantallas.");
+            } catch(e) {
+                alert("Error al disparar despedida.");
+            }
+        };
+
+        onSnapshot(collection(db, "notificaciones_escenario"), (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") { detonarAlertaEnTuCara(change.doc.data()); }
+            });
+        });
+
+        function detonarAlertaEnTuCara(data) {
+            const pop = document.getElementById('alertaVisualEscenario');
+            const tit = document.getElementById('alertaVisualTitulo');
+            const msg = document.getElementById('alertaVisualMensaje');
+            try { audioSirena.play(); } catch(e){}
+
+            let esBolaLoca = data.con_bola_loca === true;
+            if(data.tipo === "BINGO") {
+                tit.innerText = esBolaLoca ? "🔥 ¡BINGO + BOLA LOCA! 🔥" : "🏆 ¡BINGO CONFIRMADO! 🏆";
+                pop.style.background = "linear-gradient(135deg, #e63946 0%, #ff0055 100%)";
+                pop.style.color = "#fff";
+            } else {
+                tit.innerText = esBolaLoca ? "🔥 ¡LÍNEA + BOLA LOCA! 🔥" : "🎉 ¡LÍNEA CANTADA! 🎉";
+                pop.style.background = "linear-gradient(135deg, #ffd166 0%, #ff9f1c 100%)";
+                pop.style.color = "#000";
+            }
+            msg.innerHTML = `El participante <strong>${data.nombre.toUpperCase()}</strong> completó el premio con el Cartón <strong>#${String(data.nro_carton).padStart(3, '0')}</strong>.`;
+            pop.style.display = "block";
+        }
+
+        window.cerrarAlertaCantada = function() {
+            document.getElementById('alertaVisualEscenario').style.display = "none";
+        };
+
+        onSnapshot(collection(db, "cartones_vendidos"), (snapshot) => {
+            document.getElementById('lblJugadoresLogueados').innerText = snapshot.size || 0;
+        });
+
+        // 🎵 ESCUCHAR PEDIDOS ORDENADOS CRONOLÓGICAMENTE DE FORMA JUSTA (ASCENDENTE)
+        const qPedidosEscenario = query(collection(db, "pedidos_espera"), orderBy("timestamp", "asc"));
+        onSnapshot(qPedidosEscenario, (snapshot) => {
+            const contenedor = document.getElementById('contenedorPedidosPublico'); if (!contenedor) return;
+            contenedor.innerHTML = ""; let c = 0;
+            primerPedidoIdDisponible = null; primerPedidoCodigoPuro = null;
+
+            snapshot.forEach((docSnap) => {
+                c++; let data = docSnap.data(); let idPedido = docSnap.id; let codigoTemaPuro = String(data.codigo);
+                let nombreTemaLimpio = data.nombre ? data.nombre.replace(/^\d+[\s-:=]*/, '') : "Tema Musical";
+
+                if (c === 1) { primerPedidoIdDisponible = idPedido; primerPedidoCodigoPuro = codigoTemaPuro; }
+
+                let item = document.createElement('div'); item.className = "pedido-item-escenario";
+                item.innerHTML = `
+                    <div class="pedido-info">
+                        <span class="pedido-orden">${c === 1 ? '🎹 #1' : '#' + c}</span>
+                        <div><h4>${nombreTemaLimpio.toUpperCase()}</h4><p>Pide: <strong>${data.solicitante}</strong></p></div>
+                    </div>
+                    <button class="btn-tocado" onclick="cantarYMarcarTemaOficial('${idPedido}', '${codigoTemaPuro}')">Cantar 🎤</button>
+                `;
+                contenedor.appendChild(item);
+            });
+            if (c === 0) { contenedor.innerHTML = "<div class='sin-pedidos-box'>☕ Playlist vacía.</div>"; }
+        });
+
+        window.cantarYMarcarTemaOficial = async function(idPedido, codigoTema) {
+            if (!codigoTema) return;
+            let codStr = String(codigoTema);
+            try {
+                if (!numerosSalidos.includes(codStr)) { numerosSalidos.push(codStr); }
+                await updateDoc(doc(db, "estado_show", "actual"), { ultima_cancion_tocada: Number(codStr), lista_numeros_salidos: numerosSalidos });
+                await deleteDoc(doc(db, "pedidos_espera", idPedido));
+            } catch(e) {}
+        };
+
+        window.sacarBolaAlAzarPrueba = async function() {
+            if (temasDisponiblesCodigos.length === 0) return;
+            let noSalidos = temasDisponiblesCodigos.filter(num => !numerosSalidos.includes(String(num)));
+            if (noSalidos.length === 0) return;
+            let elegido = String(noSalidos[Math.floor(Math.random() * noSalidos.length)]);
+            try {
+                numerosSalidos.push(elegido);
+                await updateDoc(doc(db, "estado_show", "actual"), { ultima_cancion_tocada: Number(elegido), lista_numeros_salidos: numerosSalidos });
+            } catch(e) {}
+        };
+
+        window.activarShowInmediato = async function() {
+            const selector = document.getElementById('selectRepertorioNoche'); 
+            if(!selector.value) { alert("Elegí una lista primero."); return; }
+            
+            const nombreElegido = selector.options[selector.selectedIndex].text;
+
+            try { 
+                await updateDoc(doc(db, "estado_show", "actual"), { 
+                    minimo_requerido: 1, 
+                    repertorio_activo: selector.value,
+                    id_show_activo: nombreElegido
+                }); 
+                alert("🚀 ¡Show activo: " + nombreElegido.toUpperCase() + "!"); 
+            } catch(e) { alert("Error al activar repertorio."); }
+        };
+
+        window.regalarPaseInvitado = async function() {
+            if(temasDisponiblesCodigos.length === 0) { alert("Cargá un repertorio primero."); return; }
+            let nombre = prompt("Nombre:"); if(!nombre) return;
+            let nroMesa = prompt("Mesa:"); if(!nroMesa) return;
+            let codigoEntradaInvitado = "vip" + nroMesa.replace(/[^0-9]/g, '');
+            try {
+                let bolsa = [...temasDisponiblesCodigos].sort(() => Math.random() - 0.5).slice(0, 9).sort((a,b)=>Number(a)-Number(b));
+                const snapEstado = await getDoc(doc(db, "estado_show", "actual"));
+                let proxNro = (snapEstado.exists() && snapEstado.data().contador_cartones || 0) + 1;
+                await updateDoc(doc(db, "estado_show", "actual"), { contador_cartones: proxNro });
+                await setDoc(doc(db, "cartones_vendidos", codigoEntradaInvitado), { 
+                    nro_carton: proxNro, 
+                    nombre_participante: nombre + " (Invitado)", 
+                    id_pago: codigoEntradaInvitado, 
+                    numeros: bolsa,
+                    album_pegadas: [],
+                    repetidas: [],
+                    sobres_pendientes: 0
+                });
+                alert(`🎫 Pase creado con código: ${codigoEntradaInvitado}`);
+            } catch(e) {}
+        };
+
+        // MIDI
+        if (navigator.requestMIDIAccess) { navigator.requestMIDIAccess().then(access => {
+            for (var input of access.inputs.values()) { input.onmidimessage = (msg) => {
+                if (msg.data[0] === 144 && msg.data[2] > 0 && msg.data[1] === 60) {
+                    if (primerPedidoIdDisponible && primerPedidoCodigoPuro) {
+                        window.cantarYMarcarTemaOficial(primerPedidoIdDisponible, primerPedidoCodigoPuro);
+                        document.body.style.backgroundColor = "#1e3a3a"; setTimeout(() => { document.body.style.backgroundColor = "#0f172a"; }, 150);
+                    }
+                }
+            };}
+        });}
+    </script>
+
+    <style>
+        :root { --dark: #0f172a; --card: #1e293b; --cyan: #00f5d4; --pink: #ff0055; --green: #4caf50; --gold: #ffd166; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; color:#fff; }
+        body { background: var(--dark); padding: 20px; transition: background 0.1s; }
+        .grid-escenario-maestro { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .panel-box { background: var(--card); border: 1px solid #334155; padding: 20px; border-radius: 14px; position: relative; }
+        h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--cyan); text-transform: uppercase; border-left: 4px solid var(--pink); padding-left: 8px; }
+        select { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; margin-bottom: 15px; font-size: 1rem; color: var(--gold); font-weight: bold; }
+        .btn-panel { width: 100%; padding: 14px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-bottom: 12px; display: block; }
+        .btn-bola { background: var(--green); } .btn-action { background: #334155; }
+        .marcador-escenario-header { display: flex; gap: 15px; margin-bottom: 15px; }
+        .m-box { background: #0f172a; padding: 12px; border-radius: 8px; text-align: center; flex: 1; }
+        .m-box span { display: block; font-size: 1.6rem; color: var(--gold); font-weight: bold; }
+        .marcador-conectados-full { background: rgba(0, 245, 212, 0.1); border: 2px dashed var(--cyan); padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 15px; }
+        .marcador-conectados-full span { display: block; font-size: 2.2rem; color: var(--cyan); font-weight: bold; }
+        .pedido-item-escenario { background: #0f172a; padding: 14px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid var(--cyan); display: flex; justify-content: space-between; align-items: center; }
+        .pedido-info { display: flex; align-items: center; gap: 12px; }
+        .pedido-orden { color: var(--cyan); font-weight: bold; background: rgba(0,245,212,0.1); width: 45px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+        .btn-tocado { background: var(--green); border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .sin-pedidos-box { text-align: center; padding: 40px; color: #94a3b8; }
+        .pop-ganador-escenario { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 550px; padding: 40px; border-radius: 20px; z-index: 100000; text-align: center; border: 3px solid #fff; }
+        .badge-show-name { position: absolute; top: 20px; right: 20px; background: var(--pink); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
+        
+        /* Selector de Modo */
+        .caja-selector-modo { background: #0f172a; border: 1px solid #334155; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
+        .caja-selector-modo label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 8px; }
+        .opciones-modo-flex { display: flex; gap: 10px; }
+        .opcion-radio { flex: 1; display: flex; align-items: center; gap: 6px; background: #1e293b; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .opcion-radio input { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="grid-escenario-maestro">
+        <div class="panel-box">
+            <div id="lblShowBadge" class="badge-show-name">SHOW: <span id="lblNombreDelShowAbierto">CARGANDO...</span></div>
+            <h2>🕹️ Control de Escenario</h2>
+            
+            <!-- SELECTOR DE MODO DE TRANSMISIÓN -->
+            <div class="caja-selector-modo">
+                <label>📡 Modo de Transmisión:</label>
+                <div class="opciones-modo-flex">
+                    <label class="opcion-radio">
+                        <input type="radio" name="modoShowRadio" id="radioModoAuto" value="automatico" checked onchange="cambiarModoTransmision('automatico')">
+                        <span>🤖 Compilado Auto</span>
+                    </label>
+                    <label class="opcion-radio">
+                        <input type="radio" name="modoShowRadio" id="radioModoVivo" value="vivo" onchange="cambiarModoTransmision('vivo')">
+                        <span>🔴 Vivo Directo</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- BOTÓN INTERRUPTOR PLAY / PAUSA -->
+            <button id="btnTogglePlayShow" class="btn-panel" style="font-size: 1rem; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,245,212,0.2);" onclick="toggleEstadoShowPlay()">
+                ▶️ HABILITAR SHOW EN VIVO (PLAY)
+            </button>
+
+            <div class="marcador-escenario-header">
+                <div class="m-box"><span id="lblUltimaBola">000</span><small>Último Tema</small></div>
+                <div class="m-box"><span id="lblTotalCantados">0</span><small>Cantados</small></div>
+            </div>
+            <div class="marcador-conectados-full"><span id="lblJugadoresLogueados">0</span><small>👤 Jugadores en la Sala</small></div>
+            
+            <label style="font-size: 0.85rem; color: #94a3b8; font-weight: bold;">📋 REPERTORIO SELECCIONADO:</label>
+            <select id="selectRepertorioNoche">
+                <option value="">Cargando listas...</option>
+            </select>
+            
+            <button class="btn-panel btn-action" style="background: linear-gradient(90deg, var(--pink), #bc00dd);" onclick="activarShowInmediato()">💾 FIJAR REPERTORIO</button>
+            <button class="btn-panel btn-bola" onclick="sacarBolaAlAzarPrueba()">🎰 Tirar Bola al Azar</button>
+            <button class="btn-panel btn-action" onclick="regalarPaseInvitado()">🎫 Regalar Pase Libre</button>
+            <button class="btn-panel btn-action" style="background: #1e1e38; border: 1px solid var(--gold); color: var(--gold);" onclick="dispararDespedidaFinalShow()">🎬 LANZAR DESPEDIDA FINAL</button>
+        </div>
+        
+        <div class="panel-box">
+            <h2>📥 Cola de Temas por Cantar</h2>
+            <div id="contenedorPedidosPublico"><div class="sin-pedidos-box">Conectando...</div></div>
+        </div>
+    </div>
+    
+    <div id="alertaVisualEscenario" class="pop-ganador-escenario">
+        <h2 id="alertaVisualTitulo">🏆 ¡ALERTA! 🏆</h2>
+        <p id="alertaVisualMensaje"></p>
+        <button style="padding:12px 35px; background:#000; color:#fff; font-weight:bold; border-radius:8px; margin-top:20px; cursor:pointer;" onclick="cerrarAlertaCantada()">CONTINUAR 🎙️</button>
+    </div>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Family Game Show - Próximo Show y Reservas</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root { --azul-fondo: #0a0e17; --tarjeta: #151f32; --neon-cyan: #00f5d4; --neon-rosa: #ff0055; --mp-blue: #009ee3; --gold: #ffd166; --green: #25d366; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        body { background: var(--azul-fondo); padding: 15px; }
+        .contenedor-centrado { max-width: 450px; margin: 0 auto; }
+        .card-caja { background: var(--tarjeta); padding: 22px; border-radius: 16px; border: 1px solid #24344f; margin-bottom: 15px; }
+        h1 { font-size: 1.5rem; text-align: center; color: var(--neon-cyan); text-transform: uppercase; margin-bottom: 5px; }
+        h2 { font-size: 1.1rem; color: var(--gold); text-align: center; margin-bottom: 15px; text-transform: uppercase; }
+        .info-show-box { background: rgba(0, 245, 212, 0.08); border: 1px solid var(--neon-cyan); border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 20px; }
+        .info-show-box span { display: block; font-size: 1.2rem; font-weight: bold; color: #fff; margin-top: 4px; }
+        input { width: 100%; padding: 12px; background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; margin-bottom: 12px; font-size: 1rem; color: #fff; }
+        .btn-accion { width: 100%; padding: 14px; background: var(--neon-rosa); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; justify-content: center; text-decoration: none; color: #fff; font-size: 0.95rem; }
+        .btn-mp { background: var(--mp-blue); margin-bottom: 10px; }
+        .btn-wsp { background: var(--green); color: #fff; }
+        .btn-entrar { background: #1e2d4a; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="contenedor-centrado">
+    
+    <div class="card-caja">
+        <!-- PUNTO SECRETO QUE REDIRIGE A TU PÁGINA WIX -->
+        <h1>Family Game Show<a href="https://sbproduccione0.wixsite.com/familygameshow/secreto-1" style="color: var(--neon-cyan); text-decoration: none;">.</a></h1>
+        <p style="text-align: center; color: #94a3b8; font-size: 0.85rem; margin-bottom: 15px;">Bingo Musical • Álbum de Figuritas • Trivia en Vivo</p>
+        
+        <div class="info-show-box">
+            <small style="color: var(--neon-cyan); text-transform: uppercase; font-weight: bold;">📅 PRÓXIMA EDICIÓN</small>
+            <span id="lblFechaShow">Próximo Show</span>
+            <div style="margin-top: 8px; font-size: 0.85rem; color: #94a3b8;">
+                Valor del Cartón Digital: <strong id="lblPrecioCarton" style="color: var(--gold);">$3000</strong>
+            </div>
+        </div>
+
+        <div id="cajaFormularioRegistro">
+            <h2>🎟️ Reservar mi Cartón</h2>
+            <input type="text" id="txtNombreReg" placeholder="Nombre y Apellido">
+            <input type="text" id="txtDniReg" placeholder="Número de DNI (Sin puntos)">
+            <input type="tel" id="txtCelularReg" placeholder="Número de WhatsApp">
+            <button type="button" class="btn-accion" id="btnRegistrar">Continuar a Reservar 🚀</button>
+        </div>
+
+        <div id="cajaPasoPago" style="display:none; text-align:center;">
+            <h2 style="color: var(--neon-cyan);">¡Paso Final!</h2>
+            <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 15px;">1. Aboná tu cartón por Mercado Pago.<br>2. Enviá el comprobante para que activemos tu DNI.</p>
+            <a href="https://mpago.la/1QHc9KL" id="btnPagarMP" target="_blank" class="btn-accion btn-mp">💳 1. Pagar por Mercado Pago</a>
+            <a href="#" id="btnEnviarComprobanteWA" target="_blank" class="btn-accion btn-wsp">📱 2. Enviar Comprobante</a>
+        </div>
+    </div>
+
+    <div class="card-caja" style="text-align: center;">
+        <button type="button" class="btn-accion btn-entrar" id="btnIrACarton">🎮 Ir a la Sala de Juego / Mi Cartón 🎫</button>
+    </div>
+
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+        authDomain: "family-game-show.firebaseapp.com",
+        projectId: "family-game-show",
+        storageBucket: "family-game-show.firebasestorage.app",
+        messagingSenderId: "509983775898",
+        appId: "1:509983775898:web:47695f5b312553d9bd1323",
+        measurementId: "G-P941BVG2ST"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let TU_NUMERO_WHATSAPP = "5492215983871"; 
+    let LINK_MP_DIRECTO = "https://mpago.la/1QHc9KL"; 
+    let PRECIO_SHOW = "3000";
+    let FECHA_PROXIMO_SHOW = "Próximo Show";
+
+    const URL_CARTON_DESTINO = "https://sbproduccione0.wixsite.com/familygameshow/carton";
+
+    function aplicarDatosVisuales(data) {
+        if (!data) return;
+        let fechaEncontrada = data.fecha_evento || data.fecha_show || data.fecha_hora || data.fecha || data.dia_show;
+        if (fechaEncontrada) {
+            FECHA_PROXIMO_SHOW = String(fechaEncontrada);
+            const lblFecha = document.getElementById('lblFechaShow');
+            if (lblFecha) lblFecha.innerText = FECHA_PROXIMO_SHOW;
+        }
+
+        let precioEncontrado = data.precio_carton_actual || data.precio_carton || data.costo_carton || data.precio;
+        if (precioEncontrado && Number(precioEncontrado) >= 100) {
+            PRECIO_SHOW = String(precioEncontrado);
+        } else {
+            PRECIO_SHOW = "3000";
+        }
+        
+        const lblPrecio = document.getElementById('lblPrecioCarton');
+        if (lblPrecio) lblPrecio.innerText = "$" + PRECIO_SHOW;
+        const btnMp = document.getElementById('btnPagarMP');
+        if (btnMp) btnMp.innerText = "💳 1. Pagar $" + PRECIO_SHOW + " por Mercado Pago";
+
+        let linkMpEncontrado = data.link_pago_mp_auto || data.link_pago_mp || data.link_mp || data.link_cobro;
+        if (linkMpEncontrado && linkMpEncontrado.includes("mpago.la")) {
+            LINK_MP_DIRECTO = String(linkMpEncontrado);
+            if (btnMp) btnMp.href = LINK_MP_DIRECTO;
+        }
+    }
+
+    try {
+        db.collection("estado_show").doc("actual").onSnapshot(async (docSnap) => {
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                aplicarDatosVisuales(data);
+
+                let idShowActivo = data.id_show_activo || data.show_activo || data.id_show;
+                if (idShowActivo) {
+                    try {
+                        const snapShow = await db.collection("shows_activos").doc(idShowActivo).get();
+                        if (snapShow.exists) aplicarDatosVisuales(snapShow.data());
+                    } catch(e) {}
+                }
+            }
+        });
+    } catch(e) {}
+
+    try {
+        db.collection("shows_activos").onSnapshot((snapshot) => {
+            if (!snapshot.empty) {
+                snapshot.forEach(docItem => {
+                    aplicarDatosVisuales(docItem.data());
+                });
+            }
+        });
+    } catch(e) {}
+
+    document.getElementById('btnIrACarton').addEventListener('click', function() {
+        try {
+            if (window.top && window.top.location) {
+                window.top.location.href = URL_CARTON_DESTINO;
+            } else {
+                window.location.href = URL_CARTON_DESTINO;
+            }
+        } catch (e) {
+            window.location.href = URL_CARTON_DESTINO;
+        }
+    });
+
+    document.getElementById('btnRegistrar').addEventListener('click', async function() {
+        const nombre = document.getElementById('txtNombreReg').value.trim();
+        const dni = document.getElementById('txtDniReg').value.trim().toLowerCase().replace(/\./g, '');
+        const celular = document.getElementById('txtCelularReg').value.trim();
+
+        if (!nombre || !dni || !celular) {
+            alert("Por favor completá todos los campos.");
+            return;
+        }
+
+        try {
+            await db.collection("dnis_habilitados").doc(dni).set({
+                nombre: nombre,
+                dni: dni,
+                celular: celular,
+                estado: "pendiente",
+                fecha_registro: new Date()
+            });
+
+            document.getElementById('cajaFormularioRegistro').style.display = "none";
+            document.getElementById('cajaPasoPago').style.display = "block";
+
+            const msg = encodeURIComponent("Hola Seba! Me registré al Family Game Show.\n👤 Nombre: " + nombre + "\n🆔 DNI: " + dni + "\n📱 Cel: " + celular + "\nAcá te paso el comprobante de pago de $" + PRECIO_SHOW + ":");
+            document.getElementById('btnEnviarComprobanteWA').href = "https://wa.me/" + TU_NUMERO_WHATSAPP + "?text=" + msg;
+            document.getElementById('btnPagarMP').href = LINK_MP_DIRECTO;
+
+        } catch (e) {
+            console.error(e);
+            alert("Error al registrar: " + e.message);
+        }
+    });
+</script>
+</body>
+</html>

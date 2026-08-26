@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantalla Oficial del Salón - Bingo Show</title>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            authDomain: "family-game-show.firebaseapp.com",
+            projectId: "family-game-show",
+            storageBucket: "family-game-show.firebasestorage.app",
+            messagingSenderId: "509983775898",
+            appId: "1:509983775898:web:47695f5b312553d9bd1323",
+            measurementId: "G-P941BVG2ST"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let diccionarioCanciones = {};
+
+        // Escucha en tiempo real del show activo e historial
+        onSnapshot(doc(db, "estado_show", "actual"), async (docSnap) => {
+            if (docSnap.exists()) {
+                let datos = docSnap.data();
+                let idRepertorio = datos.repertorio_activo;
+                let ultimaBola = datos.ultima_cancion_tocada || 0;
+                let listaSalidos = datos.lista_numeros_salidos || [];
+
+                // Si cambió el repertorio, traemos los nombres de las canciones
+                if (idRepertorio) {
+                    const repSnap = await getDoc(doc(db, "repertorios", idRepertorio));
+                    if (repSnap.exists()) {
+                        diccionarioCanciones = repSnap.data().canciones || {};
+                    }
+                }
+
+                actualizarPantallaGigante(ultimaBola, listaSalidos);
+            }
+        });
+
+        function actualizarPantallaGigante(ultimaBola, listaSalidos) {
+            const bolaActualDiv = document.getElementById('bolaActualGigante');
+            const temaActualDiv = document.getElementById('temaActualGigante');
+            const historialGrid = document.getElementById('historialGrid');
+
+            // 1. Mostrar Bola Actual Grande
+            if (ultimaBola > 0) {
+                let codigoStr = String(ultimaBola).padStart(3, '0');
+                bolaActualDiv.innerText = `#${codigoStr}`;
+                temaActualDiv.innerText = diccionarioCanciones[codigoStr] || "TEMA EN VIVO";
+            } else {
+                bolaActualDiv.innerText = "--";
+                temaActualDiv.innerText = "¡A PUNTO DE ARRANCAR!";
+            }
+
+            // 2. Dibujar el historial de las que ya salieron (de la más nueva a la más vieja)
+            historialGrid.innerHTML = '';
+            let salidosInvertidos = [...listaSalidos].reverse();
+            
+            // Saltamos la primera porque ya se ve gigante arriba
+            if (salidosInvertidos.length > 0) {
+                salidosInvertidos.slice(1).forEach(num => {
+                    let codStr = String(num).padStart(3, '0');
+                    const item = document.createElement('div');
+                    item.className = 'historial-item';
+                    item.innerHTML = `<strong>#${codStr}</strong><br><span style="font-size:0.75rem; color:#aaa;">${diccionarioCanciones[codStr] || ""}</span>`;
+                    historialGrid.appendChild(item);
+                });
+            }
+        }
+    </script>
+
+    <style>
+        :root { --bg: #0b132b; --card: #1c2541; --cyan: #00f5d4; --gold: #ffd166; --text: #ffffff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 40px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        
+        .main-container { flex: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--card); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 3px solid var(--cyan); margin-bottom: 30px; text-align: center; padding: 20px; }
+        .title-top { font-size: 1.5rem; text-transform: uppercase; color: #a8dadc; letter-spacing: 2px; margin-bottom: 10px; }
+        .bola-gigante { font-size: 11rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 30px rgba(255,209,102,0.5); line-height: 1; margin-bottom: 10px; }
+        .tema-gigante { font-size: 2.8rem; font-weight: bold; color: var(--cyan); text-transform: uppercase; max-width: 90%; }
+        
+        .historial-section { flex: 1; display: flex; flex-direction: column; min-height: 250px; }
+        .historial-title { font-size: 1.2rem; text-transform: uppercase; color: #ffd166; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px; }
+        .historial-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; overflow-y: auto; padding-right: 5px; }
+        .historial-item { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-left: 4px solid var(--gold); font-size: 1.1rem; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <div class="title-top">🎵 SONANDO AHORA EN VIVO 🎤</div>
+        <div class="bola-gigante" id="bolaActualGigante">--</div>
+        <div class="tema-gigante" id="temaActualGigante">¡A PUNTO DE ARRANCAR!</div>
+    </div>
+
+    <div class="historial-section">
+        <div class="historial-title">📋 Historial de canciones cantadas (Últimas salidas):</div>
+        <div class="historial-grid" id="historialGrid"></div>
+    </div>
+
+</body>
+</html>
