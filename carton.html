@@ -113,9 +113,12 @@
         };
 
         // ==========================================
-        // CONTROL DE REPRODUCCIÓN (CANCIONES COMPLETAS)
+        // CONTROL DE STREAMING Y REPRODUCCIÓN LARGA DE YOUTUBE
         // ==========================================
+        let modoTransmisionActual = "automatico";
+        let ultimaCancionTocadaProcesada = null;
         let urlStreamActualCargada = "";
+        let showEnVivoHabilitado = false;
 
         function extraerIdYouTube(url) {
             if (!url) return "";
@@ -124,43 +127,44 @@
             return url;
         }
 
+        window.reproducirDespedidaFinal = function() {
+            const iframe = document.getElementById('iframeStream');
+            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1";
+        };
+
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
-            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
-            const numeroGiganteVisual = document.getElementById('lblNumeroGiganteVisual');
-            const nombreTemaVisual = document.getElementById('lblNombreTemaVisual');
-            
             if (!iframe) return;
-
-            const num = Number(ultimaCancionCantada);
-
-            if (num === 999) {
-                if (visualizadorGigante) visualizadorGigante.style.display = "none";
-                iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1";
-                return;
-            }
-
-            if (num && num >= 1 && temasDelRepertorioActivo[String(num)]) {
-                let datosTema = temasDelRepertorioActivo[String(num)];
-                let linkYoutubeTema = datosTema.url_youtube || "";
-                let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
-
-                if (linkYoutubeTema) {
-                    let videoId = extraerIdYouTube(linkYoutubeTema);
-                    if (videoId) {
-                        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                        if (visualizadorGigante) visualizadorGigante.style.display = "flex";
-                        if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
-                        if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
-                    }
-                }
-            } else {
+            
+            if (modoTransmisionActual === "vivo") {
                 if (linkVivo && linkVivo !== urlStreamActualCargada) {
                     let videoId = extraerIdYouTube(linkVivo);
                     iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
                     urlStreamActualCargada = linkVivo;
                 }
-                if (visualizadorGigante) visualizadorGigante.style.display = "none";
+            } else {
+                const num = Number(ultimaCancionCantada);
+                if (num === 999) {
+                    reproducirDespedidaFinal();
+                } else if (num && num >= 1 && showEnVivoHabilitado) {
+                    if (ultimaCancionTocadaProcesada !== num) {
+                        ultimaCancionTocadaProcesada = num;
+                        let datosTema = temasDelRepertorioActivo[String(num)];
+                        if (datosTema && datosTema.url_youtube) {
+                            let videoId = extraerIdYouTube(datosTema.url_youtube);
+                            if (videoId) {
+                                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                            }
+                        }
+                    }
+                } else {
+                    // Si no hay tema sonando, muestra el streaming general o espera
+                    if (linkVivo && linkVivo !== urlStreamActualCargada) {
+                        let videoId = extraerIdYouTube(linkVivo);
+                        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                        urlStreamActualCargada = linkVivo;
+                    }
+                }
             }
         }
 
@@ -299,7 +303,7 @@
         let temasDelRepertorioActivo = {}; 
         let cancionesEnEsperaEscenario = [];
         let totalTemasEnCola = 0;
-        let tamañoCartonDinamico = 15;
+        let tamañoCartonDinamico = 9;
         let yaCanteLinea = false; let yaCanteBingo = false;
         let yaReclameBolaLoca = false;
         let fila1 = [], fila2 = [], fila3 = [];
@@ -793,7 +797,7 @@
 
                 let premioTexto = modalidadElegida === 'presencial' ? "¡Ganaste un trago en la barra 🍹!" : "¡Ganaste un pase libre para el próximo show 🏠!";
                 alert(`🔥 ¡BOLA LOCA ENCONTRADA! 🔥\nTu cartón tenía el número #${String(numeroClaveBolaLoca).padStart(2,'0')}.\n${premioTexto}\nAvisale al personal del show.`);
-                return;
+                return; // Cortamos para que no se mezcle con línea ni bingo
             }
 
             // Si ya cantó bingo, congelamos las líneas
@@ -1302,18 +1306,8 @@
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
-        
-        /* 🌟 CONTENEDOR Y VISUALIZADOR DE BOLA DE BOLICHE (MANTIENE TUS 60 FIGURITAS ORIGINALES) */
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
-        
-        .visualizador-fiesta { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a103c 0%, #050510 100%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 10px; overflow: hidden; }
-        .bola-boliche { width: 65px; height: 65px; background: radial-gradient(circle at 30% 30%, #fff, #888 40%, #222 80%); border-radius: 50%; box-shadow: 0 0 20px var(--neon-cyan), inset 0 0 8px #fff; animation: girarBola 4s linear infinite, flotarBola 2s ease-in-out infinite alternate; margin-bottom: 8px; }
-        @keyframes girarBola { 0% { background-position: 0 0; } 100% { background-position: 50px 50px; } }
-        @keyframes flotarBola { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-6px) scale(1.05); } }
-        .numero-gigante-visual { font-size: 2.8rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,209,102,0.8); line-height: 1; margin-bottom: 4px; }
-        .nombre-tema-visual { font-size: 0.8rem; color: var(--neon-cyan); font-weight: bold; text-transform: uppercase; text-align: center; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -1366,8 +1360,10 @@
 </head>
 <body>
 
+<!-- FONDO TRANSLÚCIDO OSCURO PARA EL TOUR -->
 <div id="tourBackdrop" class="tour-backdrop-oscuro" onclick="siguientePasoTour()"></div>
 
+<!-- MODAL TOUR GLOBO CENTRADO -->
 <div id="tourOverlay" class="modal-overlay-tour">
     <div class="modal-contenido-tour">
         <h2 id="tourTitulo">¡Bienvenido!</h2>
@@ -1379,6 +1375,7 @@
     </div>
 </div>
 
+<!-- MODALES -->
 <div id="modalZoomFigurita" class="modal-overlay" onclick="cerrarModalZoom()">
     <div class="modal-contenido" style="max-width: 340px; border-color: var(--gold); background: #0a0e17;" onclick="event.stopPropagation()">
         <h2 id="tituloZoomFigurita" style="font-size: 1rem; color: var(--gold); margin-bottom: 8px;"></h2>
@@ -1436,6 +1433,7 @@
 
 <div class="contenedor-centrado">
     
+    <!-- LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
         <input type="text" id="txtNombre" placeholder="Tu Nombre y Apellido">
@@ -1451,6 +1449,7 @@
         <button class="btn-accion" onclick="intentarIngresarAlShow()">Ingresar al Show 🎫</button>
     </div>
 
+    <!-- PANTALLA DE ESPERA CON VIDEO TUTORIAL -->
     <div id="cajaNoHabilitado" class="card-caja" style="display:none; text-align:center;">
         <h2 style="color: var(--gold);">⏳ Esperando Habilitación</h2>
         <p style="font-size: 0.8rem; color: #cbd5e1; margin: 8px 0;">Mirá el video tutorial mientras te habilitamos:</p>
@@ -1470,6 +1469,7 @@
     
     <div id="cajaCargando" class="card-caja" style="display:none; text-align:center;"><p>Cargando sala de juego...</p></div>
     
+    <!-- ZONA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
         <div class="barra-pozo-vivo">
@@ -1492,18 +1492,12 @@
             <button id="tabBtn_canje" class="btn-pestana" onclick="cambiarSeccionJuego('canje')">🎁 Canjes</button>
         </div>
 
-        <!-- VISTA 1: BINGO CON VISUALIZADOR DE BOLA DE BOLICHE -->
+        <!-- VISTA 1: BINGO -->
         <div id="vistaBingo">
             <div class="card-caja">
-                <h2>📺 Transmisión y Fiesta</h2>
+                <h2>📺 Transmisión Oficial</h2>
                 <div class="video-container-simple">
-                    <!-- VISUALIZADOR FIESTA CON BOLA DE BOLICHE Y NÚMERO GIGANTE -->
-                    <div id="visualizadorBolaBoliche" class="visualizador-fiesta">
-                        <div class="bola-boliche"></div>
-                        <div id="lblNumeroGiganteVisual" class="numero-gigante-visual">#00</div>
-                        <div id="lblNombreTemaVisual" class="nombre-tema-visual">CARGANDO FIESTA...</div>
-                    </div>
-                    <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 </div>
             </div>
 
@@ -1529,7 +1523,7 @@
             </div>
         </div>
 
-        <!-- VISTA 2: ÁLBUM ORIGINAL DE 60 FIGURITAS -->
+        <!-- VISTA 2: ÁLBUM -->
         <div id="vistaAlbum" style="display:none;">
             <div class="card-caja">
                 <h2>📘 Mi Álbum (60 Figuritas)</h2>
