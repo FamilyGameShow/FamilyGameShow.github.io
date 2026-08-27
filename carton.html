@@ -113,7 +113,7 @@
         };
 
         // ==========================================
-        // CONTROL DE STREAMING Y YOUTUBE (CANCIONES LARGAS)
+        // CONTROL DE STREAMING Y YOUTUBE (CANCIONES COMPLETAS + BOLA DE BOLICHE)
         // ==========================================
         let modoTransmisionActual = "automatico";
         let ultimaCancionTocadaProcesada = null;
@@ -129,28 +129,41 @@
 
         window.reproducirDespedidaFinal = function() {
             const iframe = document.getElementById('iframeStream');
-            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1"; // Canción o cierre final por defecto
+            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
+            if (visualizadorGigante) visualizadorGigante.style.display = "none";
+            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1"; 
         };
 
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
+            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
+            const numeroGiganteVisual = document.getElementById('lblNumeroGiganteVisual');
+            const nombreTemaVisual = document.getElementById('lblNombreTemaVisual');
+            
             if (!iframe) return;
             
             const num = Number(ultimaCancionCantada);
             if (num === 999) {
                 reproducirDespedidaFinal();
             } else if (num && num >= 1 && showEnVivoHabilitado) {
-                if (ultimaCancionTocadaProcesada !== num) {
-                    ultimaCancionTocadaProcesada = num;
-                    let datosTema = temasDelRepertorioActivo[String(num)];
-                    if (datosTema && datosTema.url_youtube) {
-                        let videoId = extraerIdYouTube(datosTema.url_youtube);
+                let datosTema = temasDelRepertorioActivo[String(num)];
+                if (datosTema) {
+                    // Compatible tanto con 'url_youtube' como si quedó guardado en 'correcta'
+                    let linkAudio = datosTema.url_youtube || (datosTema.correcta && datosTema.correcta.includes("http") ? datosTema.correcta : "");
+                    let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
+
+                    if (linkAudio) {
+                        let videoId = extraerIdYouTube(linkAudio);
                         if (videoId) {
                             iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                            if (visualizadorGigante) visualizadorGigante.style.display = "flex";
+                            if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
+                            if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
                         }
                     }
                 }
             } else {
+                if (visualizadorGigante) visualizadorGigante.style.display = "none";
                 if (linkVivo && linkVivo !== urlStreamActualCargada) {
                     let videoId = extraerIdYouTube(linkVivo);
                     iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
@@ -294,7 +307,7 @@
         let temasDelRepertorioActivo = {}; 
         let cancionesEnEsperaEscenario = [];
         let totalTemasEnCola = 0;
-        let tamañoCartonDinamico = 9;
+        let tamañoCartonDinamico = 15;
         let yaCanteLinea = false; let yaCanteBingo = false;
         let yaReclameBolaLoca = false;
         let fila1 = [], fila2 = [], fila3 = [];
@@ -1296,8 +1309,18 @@
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
+        
+        /* 🌟 CONTENEDOR Y VISUALIZADOR DE BOLA DE BOLICHE */
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        
+        .visualizador-fiesta { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a103c 0%, #050510 100%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 10px; overflow: hidden; }
+        .bola-boliche { width: 65px; height: 65px; background: radial-gradient(circle at 30% 30%, #fff, #888 40%, #222 80%); border-radius: 50%; box-shadow: 0 0 20px var(--neon-cyan), inset 0 0 8px #fff; animation: girarBola 4s linear infinite, flotarBola 2s ease-in-out infinite alternate; margin-bottom: 8px; }
+        @keyframes girarBola { 0% { background-position: 0 0; } 100% { background-position: 50px 50px; } }
+        @keyframes flotarBola { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-6px) scale(1.05); } }
+        .numero-gigante-visual { font-size: 2.8rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,209,102,0.8); line-height: 1; margin-bottom: 4px; }
+        .nombre-tema-visual { font-size: 0.8rem; color: var(--neon-cyan); font-weight: bold; text-transform: uppercase; text-align: center; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -1476,12 +1499,18 @@
             <button id="tabBtn_canje" class="btn-pestana" onclick="cambiarSeccionJuego('canje')">🎁 Canjes</button>
         </div>
 
-        <!-- VISTA 1: BINGO -->
+        <!-- VISTA 1: BINGO CON VISUALIZADOR DE BOLA DE BOLICHE -->
         <div id="vistaBingo">
             <div class="card-caja">
-                <h2>📺 Transmisión Oficial</h2>
+                <h2>📺 Transmisión y Fiesta</h2>
                 <div class="video-container-simple">
-                    <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    <!-- VISUALIZADOR FIESTA CON BOLA DE BOLICHE Y NÚMERO GIGANTE -->
+                    <div id="visualizadorBolaBoliche" class="visualizador-fiesta">
+                        <div class="bola-boliche"></div>
+                        <div id="lblNumeroGiganteVisual" class="numero-gigante-visual">#00</div>
+                        <div id="lblNombreTemaVisual" class="nombre-tema-visual">CARGANDO FIESTA...</div>
+                    </div>
+                    <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 </div>
             </div>
 
