@@ -148,7 +148,7 @@
             } else if (num && num >= 1 && showEnVivoHabilitado) {
                 let datosTema = temasDelRepertorioActivo ? temasDelRepertorioActivo[String(num)] : null;
                 if (datosTema) {
-                    let linkAudio = datosTema.url_youtube || datosTema.correcta || "";
+                    let linkAudio = datosTema.url_youtube || "";
                     let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
                     if (linkAudio && linkAudio.includes("http")) {
@@ -167,6 +167,15 @@
                         }
                     }
                 }
+            } else {
+                if (visualizadorGigante) visualizadorGigante.style.display = "none";
+                if (linkVivo && linkVivo !== urlStreamActualCargada) {
+                    let videoId = extraerIdYouTube(linkVivo);
+                    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                    urlStreamActualCargada = linkVivo;
+                }
+            }
+        }
             } else {
                 if (visualizadorGigante) visualizadorGigante.style.display = "none";
                 if (linkVivo && linkVivo !== urlStreamActualCargada) {
