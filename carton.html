@@ -113,7 +113,7 @@
         };
 
         // ==========================================
-        // CONTROL DE STREAMING Y REPRODUCCIÓN LARGA DE YOUTUBE
+        // CONTROL DE STREAMING Y YOUTUBE (CANCIONES LARGAS)
         // ==========================================
         let modoTransmisionActual = "automatico";
         let ultimaCancionTocadaProcesada = null;
@@ -129,41 +129,32 @@
 
         window.reproducirDespedidaFinal = function() {
             const iframe = document.getElementById('iframeStream');
-            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1";
+            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1"; // Canción o cierre final por defecto
         };
 
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
             if (!iframe) return;
             
-            if (modoTransmisionActual === "vivo") {
+            const num = Number(ultimaCancionCantada);
+            if (num === 999) {
+                reproducirDespedidaFinal();
+            } else if (num && num >= 1 && showEnVivoHabilitado) {
+                if (ultimaCancionTocadaProcesada !== num) {
+                    ultimaCancionTocadaProcesada = num;
+                    let datosTema = temasDelRepertorioActivo[String(num)];
+                    if (datosTema && datosTema.url_youtube) {
+                        let videoId = extraerIdYouTube(datosTema.url_youtube);
+                        if (videoId) {
+                            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                        }
+                    }
+                }
+            } else {
                 if (linkVivo && linkVivo !== urlStreamActualCargada) {
                     let videoId = extraerIdYouTube(linkVivo);
                     iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
                     urlStreamActualCargada = linkVivo;
-                }
-            } else {
-                const num = Number(ultimaCancionCantada);
-                if (num === 999) {
-                    reproducirDespedidaFinal();
-                } else if (num && num >= 1 && showEnVivoHabilitado) {
-                    if (ultimaCancionTocadaProcesada !== num) {
-                        ultimaCancionTocadaProcesada = num;
-                        let datosTema = temasDelRepertorioActivo[String(num)];
-                        if (datosTema && datosTema.url_youtube) {
-                            let videoId = extraerIdYouTube(datosTema.url_youtube);
-                            if (videoId) {
-                                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                            }
-                        }
-                    }
-                } else {
-                    // Si no hay tema sonando, muestra el streaming general o espera
-                    if (linkVivo && linkVivo !== urlStreamActualCargada) {
-                        let videoId = extraerIdYouTube(linkVivo);
-                        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                        urlStreamActualCargada = linkVivo;
-                    }
                 }
             }
         }
@@ -644,7 +635,6 @@
             renderizarBandejaTrivias();
             renderizarCatalogoCanjeDinamico();
             aplicarBloqueoPreShowEstricto();
-            iniciarEscuchaChat();
             renderizarMisRepetidas();
             iniciarEscuchaSalaCambios();
             
@@ -659,7 +649,7 @@
                     sobresPendientesParaAbrir = d.sobres_pendientes || 0;
                     puntosTriviaJugador = d.puntos || 0;
                     triviasRespondidasIds = (d.trivias_respondidas || []).map(String);
-                    yaReclameBolaLoca = d.bola_loca_reclamada || false;
+                    yaReclameBolaLoca = data.bola_loca_reclamada || false;
                     document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
                     document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
                     renderizarPaginaAlbum(); renderizarMisRepetidas(); renderizarBandejaTrivias(); renderizarCatalogoCanjeDinamico(); actualizarIndicadorSobres();
@@ -1360,10 +1350,8 @@
 </head>
 <body>
 
-<!-- FONDO TRANSLÚCIDO OSCURO PARA EL TOUR -->
 <div id="tourBackdrop" class="tour-backdrop-oscuro" onclick="siguientePasoTour()"></div>
 
-<!-- MODAL TOUR GLOBO CENTRADO -->
 <div id="tourOverlay" class="modal-overlay-tour">
     <div class="modal-contenido-tour">
         <h2 id="tourTitulo">¡Bienvenido!</h2>
@@ -1375,7 +1363,6 @@
     </div>
 </div>
 
-<!-- MODALES -->
 <div id="modalZoomFigurita" class="modal-overlay" onclick="cerrarModalZoom()">
     <div class="modal-contenido" style="max-width: 340px; border-color: var(--gold); background: #0a0e17;" onclick="event.stopPropagation()">
         <h2 id="tituloZoomFigurita" style="font-size: 1rem; color: var(--gold); margin-bottom: 8px;"></h2>
@@ -1433,7 +1420,6 @@
 
 <div class="contenedor-centrado">
     
-    <!-- LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
         <input type="text" id="txtNombre" placeholder="Tu Nombre y Apellido">
@@ -1449,7 +1435,6 @@
         <button class="btn-accion" onclick="intentarIngresarAlShow()">Ingresar al Show 🎫</button>
     </div>
 
-    <!-- PANTALLA DE ESPERA CON VIDEO TUTORIAL -->
     <div id="cajaNoHabilitado" class="card-caja" style="display:none; text-align:center;">
         <h2 style="color: var(--gold);">⏳ Esperando Habilitación</h2>
         <p style="font-size: 0.8rem; color: #cbd5e1; margin: 8px 0;">Mirá el video tutorial mientras te habilitamos:</p>
@@ -1469,7 +1454,6 @@
     
     <div id="cajaCargando" class="card-caja" style="display:none; text-align:center;"><p>Cargando sala de juego...</p></div>
     
-    <!-- ZONA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
         <div class="barra-pozo-vivo">
