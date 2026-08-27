@@ -125,7 +125,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO (8 COLUMNAS REALES: SIN DORADA SEPARADA)
+        // // 4. SUBIR REPERTORIO (MAPEO CORREGIDO DE 8 COLUMNAS)
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -144,7 +144,7 @@
                     
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
                     let nombre = partes[1] ? partes[1].trim() : linea.trim();
-                    let urlFig = partes[2] ? partes[2].trim() : "";       // 3. Dirección de Figurita
+                    let urlFig = partes[2] ? partes[2].trim() : "";       // 3. Figurita
                     let pregunta = partes[3] ? partes[3].trim() : "";    // 4. Pregunta Trivia
                     let opA = partes[4] ? partes[4].trim() : "";          // 5. Opción A
                     let opB = partes[5] ? partes[5].trim() : "";          // 6. Opción B
@@ -154,12 +154,12 @@
                     cancionesObj[numero] = {
                         nombre: nombre,
                         url_fig: urlFig,
-                        url_fig_gold: "", // No se usa por separado
+                        url_fig_gold: "", // Lo dejamos vacío intencionalmente ya que no se usa separado
                         pregunta: pregunta,
                         opcion_a: opA,
                         opcion_b: opB,
                         correcta: correcta,
-                        url_youtube: urlYoutube
+                        url_youtube: urlYoutube // ¡Acá se guarda correctamente el link de YouTube!
                     };
                 });
 
@@ -168,7 +168,7 @@
                     canciones: cancionesObj
                 });
 
-                alert("¡Repertorio subido con éxito y perfectamente ordenado!");
+                alert("¡Repertorio subido y mapeado correctamente en Firebase!");
                 location.reload();
             } catch(e) {
                 alert("Error al subir repertorio: " + e.message);
