@@ -113,7 +113,7 @@
         };
 
         // ==========================================
-        // CONTROL DE STREAMING Y YOUTUBE (CANCIONES COMPLETAS + BOLA DE BOLICHE)
+        // CONTROL DE STREAMING Y YOUTUBE BLINDADO
         // ==========================================
         let modoTransmisionActual = "automatico";
         let ultimaCancionTocadaProcesada = null;
@@ -146,19 +146,24 @@
             if (num === 999) {
                 reproducirDespedidaFinal();
             } else if (num && num >= 1 && showEnVivoHabilitado) {
-                let datosTema = temasDelRepertorioActivo[String(num)];
+                let datosTema = temasDelRepertorioActivo ? temasDelRepertorioActivo[String(num)] : null;
                 if (datosTema) {
-                    // Compatible tanto con 'url_youtube' como si quedó guardado en 'correcta'
-                    let linkAudio = datosTema.url_youtube || (datosTema.correcta && datosTema.correcta.includes("http") ? datosTema.correcta : "");
+                    let linkAudio = datosTema.url_youtube || datosTema.correcta || "";
                     let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
-                    if (linkAudio) {
+                    if (linkAudio && linkAudio.includes("http")) {
                         let videoId = extraerIdYouTube(linkAudio);
                         if (videoId) {
                             iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
                             if (visualizadorGigante) visualizadorGigante.style.display = "flex";
                             if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
                             if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
+                        }
+                    } else {
+                        if (visualizadorGigante) visualizadorGigante.style.display = "none";
+                        if (linkVivo) {
+                            let videoId = extraerIdYouTube(linkVivo);
+                            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
                         }
                     }
                 }
@@ -1026,7 +1031,10 @@
                     grilla.appendChild(item); continue;
                 }
 
-                let urlImagen = (esDorada && datosCancionVinculada.url_fig_gold) ? datosCancionVinculada.url_fig_gold : (datosCancionVinculada.url_fig || "");
+                // Soporte universal para leer la URL de la figurita sin importar cómo se haya guardado
+                let urlImagen = datosCancionVinculada.url_fig || datosCancionVinculada.url_figurita || "";
+                if (esDorada && datosCancionVinculada.url_fig_gold) urlImagen = datosCancionVinculada.url_fig_gold;
+
                 let nombreTemaLimpio = String(datosCancionVinculada.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
                 if (tieneFigurita) {
