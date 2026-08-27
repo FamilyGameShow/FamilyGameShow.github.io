@@ -60,7 +60,6 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
 
-                // 🎯 Muestra el nombre real del show desde id_show_activo
                 const showReal = data.id_show_activo || data.repertorio_activo || "SHOW ACTIVO";
                 const lblBadge = document.getElementById('lblNombreDelShowAbierto');
                 if (lblBadge) {
@@ -71,7 +70,6 @@
                 showEnVivoActivo = data.show_iniciado === true;
                 modoTransmisionActual = data.modo_transmision || "automatico";
 
-                // Actualizar interruptor de Modo
                 const radioVivo = document.getElementById('radioModoVivo');
                 const radioAuto = document.getElementById('radioModoAuto');
                 if (radioVivo && radioAuto) {
@@ -82,11 +80,10 @@
                     }
                 }
 
-                // Actualizar botón visual de Play/Pausa
                 const btnToggle = document.getElementById('btnTogglePlayShow');
                 if (btnToggle) {
                     if (showEnVivoActivo) {
-                        btnToggle.innerText = "⏸️ PAUSAR SHOW (MODO ESPERA)";
+                        btnToggle.innerText = "⏸️ PAUSAR SHOW (MÚSICA DE ESPERA)";
                         btnToggle.style.background = "linear-gradient(90deg, #ff9f1c, #e63946)";
                         btnToggle.style.color = "#fff";
                     } else {
@@ -137,15 +134,15 @@
         };
 
         window.dispararDespedidaFinalShow = async function() {
-            if(!confirm("¿Querés reproducir el video de despedida y cierre en todos los cartones?")) return;
+            if(!confirm("¿Querés disparar la canción/video de cierre final en todas las pantallas?")) return;
             try {
                 await updateDoc(doc(db, "estado_show", "actual"), {
                     ultima_cancion_tocada: 999,
                     show_iniciado: false
                 });
-                alert("🎬 Video de despedida disparado en todas las pantallas.");
+                alert("🎬 Cierre final disparado en todas las pantallas.");
             } catch(e) {
-                alert("Error al disparar despedida.");
+                alert("Error al disparar el cierre.");
             }
         };
 
@@ -161,17 +158,23 @@
             const msg = document.getElementById('alertaVisualMensaje');
             try { audioSirena.play(); } catch(e){}
 
-            let esBolaLoca = data.con_bola_loca === true;
+            let esBolaLoca = data.tipo === "BOLA_LOCA";
             if(data.tipo === "BINGO") {
-                tit.innerText = esBolaLoca ? "🔥 ¡BINGO + BOLA LOCA! 🔥" : "🏆 ¡BINGO CONFIRMADO! 🏆";
+                tit.innerText = "🏆 ¡BINGO CONFIRMADO! 🏆";
                 pop.style.background = "linear-gradient(135deg, #e63946 0%, #ff0055 100%)";
                 pop.style.color = "#fff";
-            } else {
-                tit.innerText = esBolaLoca ? "🔥 ¡LÍNEA + BOLA LOCA! 🔥" : "🎉 ¡LÍNEA CANTADA! 🎉";
+                msg.innerHTML = `¡El participante <strong>${data.nombre.toUpperCase()}</strong> cantó BINGO con el Cartón <strong>#${String(data.nro_carton).padStart(3, '0')}</strong>! 👑`;
+            } else if(data.tipo === "LINEA") {
+                tit.innerText = "🎉 ¡LÍNEA CANTADA! 🎉";
                 pop.style.background = "linear-gradient(135deg, #ffd166 0%, #ff9f1c 100%)";
                 pop.style.color = "#000";
+                msg.innerHTML = `El participante <strong>${data.nombre.toUpperCase()}</strong> hizo línea con el Cartón <strong>#${String(data.nro_carton).padStart(3, '0')}</strong>. Premio: <strong>$${Number(data.monto || 0).toLocaleString('es-AR')}</strong> 💸`;
+            } else if(data.tipo === "BOLA_LOCA") {
+                tit.innerText = "🔥 ¡BOLA LOCA ENCONTRADA! 🔥";
+                pop.style.background = "linear-gradient(135deg, #00f5d4 0%, #2ec4b6 100%)";
+                pop.style.color = "#000";
+                msg.innerHTML = `¡El participante <strong>${data.nombre.toUpperCase()}</strong> (Cartón <strong>#${String(data.nro_carton).padStart(3, '0')}</strong>) encontró la Bola Loca y ganó su premio al instante! 🍹✨`;
             }
-            msg.innerHTML = `El participante <strong>${data.nombre.toUpperCase()}</strong> completó el premio con el Cartón <strong>#${String(data.nro_carton).padStart(3, '0')}</strong>.`;
             pop.style.display = "block";
         }
 
@@ -183,7 +186,6 @@
             document.getElementById('lblJugadoresLogueados').innerText = snapshot.size || 0;
         });
 
-        // 🎵 ESCUCHAR PEDIDOS ORDENADOS CRONOLÓGICAMENTE DE FORMA JUSTA (ASCENDENTE)
         const qPedidosEscenario = query(collection(db, "pedidos_espera"), orderBy("timestamp", "asc"));
         onSnapshot(qPedidosEscenario, (snapshot) => {
             const contenedor = document.getElementById('contenedorPedidosPublico'); if (!contenedor) return;
@@ -202,11 +204,11 @@
                         <span class="pedido-orden">${c === 1 ? '🎹 #1' : '#' + c}</span>
                         <div><h4>${nombreTemaLimpio.toUpperCase()}</h4><p>Pide: <strong>${data.solicitante}</strong></p></div>
                     </div>
-                    <button class="btn-tocado" onclick="cantarYMarcarTemaOficial('${idPedido}', '${codigoTemaPuro}')">Cantar 🎤</button>
+                    <button class="btn-tocado" onclick="cantarYMarcarTemaOficial('${idPedido}', '${codigoTemaPuro}')">Cantar Canción Completa 🎤</button>
                 `;
                 contenedor.appendChild(item);
             });
-            if (c === 0) { contenedor.innerHTML = "<div class='sin-pedidos-box'>☕ Playlist vacía.</div>"; }
+            if (c === 0) { contenedor.innerHTML = "<div class='sin-pedidos-box'>☕ Playlist de pedidos vacía.</div>"; }
         });
 
         window.cantarYMarcarTemaOficial = async function(idPedido, codigoTema) {
@@ -215,7 +217,9 @@
             try {
                 if (!numerosSalidos.includes(codStr)) { numerosSalidos.push(codStr); }
                 await updateDoc(doc(db, "estado_show", "actual"), { ultima_cancion_tocada: Number(codStr), lista_numeros_salidos: numerosSalidos });
-                await deleteDoc(doc(db, "pedidos_espera", idPedido));
+                if (idPedido) {
+                    await deleteDoc(doc(db, "pedidos_espera", idPedido));
+                }
             } catch(e) {}
         };
 
@@ -300,7 +304,7 @@
         .pedido-item-escenario { background: #0f172a; padding: 14px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid var(--cyan); display: flex; justify-content: space-between; align-items: center; }
         .pedido-info { display: flex; align-items: center; gap: 12px; }
         .pedido-orden { color: var(--cyan); font-weight: bold; background: rgba(0,245,212,0.1); width: 45px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
-        .btn-tocado { background: var(--green); border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-tocado { background: var(--green); border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000; }
         .sin-pedidos-box { text-align: center; padding: 40px; color: #94a3b8; }
         .pop-ganador-escenario { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 550px; padding: 40px; border-radius: 20px; z-index: 100000; text-align: center; border: 3px solid #fff; }
         .badge-show-name { position: absolute; top: 20px; right: 20px; background: var(--pink); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
@@ -325,7 +329,7 @@
                 <div class="opciones-modo-flex">
                     <label class="opcion-radio">
                         <input type="radio" name="modoShowRadio" id="radioModoAuto" value="automatico" checked onchange="cambiarModoTransmision('automatico')">
-                        <span>🤖 Compilado Auto</span>
+                        <span>🤖 Canción Completa / Fiesta</span>
                     </label>
                     <label class="opcion-radio">
                         <input type="radio" name="modoShowRadio" id="radioModoVivo" value="vivo" onchange="cambiarModoTransmision('vivo')">
@@ -353,7 +357,7 @@
             <button class="btn-panel btn-action" style="background: linear-gradient(90deg, var(--pink), #bc00dd);" onclick="activarShowInmediato()">💾 FIJAR REPERTORIO</button>
             <button class="btn-panel btn-bola" onclick="sacarBolaAlAzarPrueba()">🎰 Tirar Bola al Azar</button>
             <button class="btn-panel btn-action" onclick="regalarPaseInvitado()">🎫 Regalar Pase Libre</button>
-            <button class="btn-panel btn-action" style="background: #1e1e38; border: 1px solid var(--gold); color: var(--gold);" onclick="dispararDespedidaFinalShow()">🎬 LANZAR DESPEDIDA FINAL</button>
+            <button class="btn-panel btn-action" style="background: #1e1e38; border: 1px solid var(--gold); color: var(--gold);" onclick="dispararDespedidaFinalShow()">🎬 LANZAR CIERRE FINAL</button>
         </div>
         
         <div class="panel-box">
