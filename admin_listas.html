@@ -127,7 +127,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO
+        // 4. SUBIR REPERTORIO (8 COLUMNAS LIMPIAS Y ORDENADAS)
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -142,24 +142,29 @@
                 
                 lineas.forEach((linea, index) => {
                     if (linea.trim() === "") return;
-                   let numero = partes[0] ? partes[0].trim() : String(index + 1); // 1. Número
-let nombre = partes[1] ? partes[1].trim() : "";                // 2. Nombre de la canción
-let urlFig = partes[2] ? partes[2].trim() : "";                // 3. Figurita
-let pregunta = partes[3] ? partes[3].trim() : "";              // 4. Pregunta
-let opA = partes[4] ? partes[4].trim() : "";                    // 5. Opción A
-let opB = partes[5] ? partes[5].trim() : "";                    // 6. Opción B
-let correcta = partes[6] ? partes[6].trim() : "";              // 7. Respuesta correcta
-let urlYoutube = partes[7] ? partes[7].trim() : "";            // 8. Link de YouTube
+                    let partes = linea.split('\t');
+                    
+                    let numero = partes[0] ? partes[0].trim() : String(index + 1);
+                    let nombre = partes[1] ? partes[1].trim() : "";                // 1. Nombre
+                    let urlFig = partes[2] ? partes[2].trim() : "";                // 2. Figurita normal
+                    let pregunta = partes[3] ? partes[3].trim() : "";              // 3. Pregunta
+                    let opA = partes[4] ? partes[4].trim() : "";                    // 4. Opción A
+                    let opB = partes[5] ? partes[5].trim() : "";                    // 5. Opción B
+                    let correcta = partes[6] ? partes[6].trim() : "";              // 6. Respuesta correcta
+                    let urlYoutube = partes[7] ? partes[7].trim() : "";            // 7. Link de YouTube
 
-cancionesObj[numero] = {
-    nombre: nombre,
-    url_fig: urlFig,
-    pregunta: pregunta,
-    opcion_a: opA,
-    opcion_b: opB,
-    correcta: correcta,
-    url_youtube: urlYoutube
-};
+                    // Limpieza automática por si quedaron dos links juntos
+                    let urlFigLimpia = urlFig.includes('/http') ? urlFig.split('/http')[0] : urlFig;
+
+                    cancionesObj[numero] = {
+                        nombre: nombre,
+                        url_fig: urlFigLimpia,
+                        pregunta: pregunta,
+                        opcion_a: opA,
+                        opcion_b: opB,
+                        correcta: correcta,
+                        url_youtube: urlYoutube
+                    };
                 });
 
                 await setDoc(doc(db, "repertorios", idRep), {
@@ -167,7 +172,7 @@ cancionesObj[numero] = {
                     canciones: cancionesObj
                 });
 
-                alert("¡Repertorio subido con éxito!");
+                alert("¡Repertorio subido limpio y ordenado con éxito!");
                 location.reload();
             } catch(e) {
                 alert("Error al subir repertorio: " + e.message);
