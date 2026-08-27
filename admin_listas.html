@@ -125,8 +125,9 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO (8 COLUMNAS LIMPIAS, SIN CAMPOS FANTASMA)
+        // 4. SUBIR REPERTORIO (LIMPIO, ORDENADO Y BLINDADO)
         window.procesarYSubirRepertorio = async function() {
+            console.log("Iniciando subida de repertorio...");
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
             const boton = document.getElementById('btnSubir');
@@ -143,15 +144,14 @@
                     let partes = linea.split('\t');
                     
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
-                    let nombre = partes[1] ? partes[1].trim() : "";                // 1. Nombre
-                    let urlFig = partes[2] ? partes[2].trim() : "";                // 2. Figurita normal
-                    let pregunta = partes[3] ? partes[3].trim() : "";              // 3. Pregunta Trivia
-                    let opA = partes[4] ? partes[4].trim() : "";                    // 4. Opción A
-                    let opB = partes[5] ? partes[5].trim() : "";                    // 5. Opción B
-                    let correcta = partes[6] ? partes[6].trim() : "";              // 6. Respuesta correcta
-                    let urlYoutube = partes[7] ? partes[7].trim() : "";            // 7. Link de YouTube
+                    let nombre = partes[1] ? partes[1].trim() : "";
+                    let urlFig = partes[2] ? partes[2].trim() : "";
+                    let pregunta = partes[3] ? partes[3].trim() : "";
+                    let opA = partes[4] ? partes[4].trim() : "";
+                    let opB = partes[5] ? partes[5].trim() : "";
+                    let correcta = partes[6] ? partes[6].trim() : "";
+                    let urlYoutube = partes[7] ? partes[7].trim() : "";
 
-                    // Limpieza automática por si quedaron dos links juntos
                     let urlFigLimpia = urlFig.includes('/http') ? urlFig.split('/http')[0] : urlFig;
 
                     cancionesObj[numero] = {
@@ -165,6 +165,7 @@
                     };
                 });
 
+                console.log("Enviando a Firebase...", cancionesObj);
                 await setDoc(doc(db, "repertorios", idRep), {
                     nombre_show: idRep,
                     canciones: cancionesObj
@@ -173,6 +174,7 @@
                 alert("¡Repertorio subido limpio y ordenado con éxito!");
                 location.reload();
             } catch(e) {
+                console.error("Error atrapado:", e);
                 alert("Error al subir repertorio: " + e.message);
             } finally {
                 boton.innerText = "Subir Repertorio 🚀"; boton.disabled = false;
