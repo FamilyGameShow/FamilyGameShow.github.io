@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <link rel="icon" href="61SODADORADA.png" type="image/png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Family Game Show - Mi Cartón Digital</title>
@@ -34,7 +33,7 @@
         let pasoActual = 0;
         const pasosTour = [
             { titulo: "🎟️ ¡Bienvenido al Show!", mensaje: "Vamos a darte un tour rápido para que sepas cómo jugar y ganar premios. ¡Seguime!", el: "cajaJuegoActivo", func: null },
-            { titulo: "📺 Transmisión en Vivo", mensaje: "Desde acá escuchás todo lo que pasa en el show y ves el bolillero.", el: "iframeStream", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "📺 Transmisión y Fiesta", mensaje: "Desde acá escuchás la música completa del show y ves el visualizador de la bola de boliche.", el: "iframeStream", func: () => cambiarSeccionJuego('bingo') },
             { titulo: "🎟️ Tu Cartón de Bingo", mensaje: "Acá verás tus números. Si el sistema se pierde, podés usar el modo manual para tachar vos mismo.", el: "grillaNumerosBingo", func: () => cambiarSeccionJuego('bingo') },
             { titulo: "🖨️ Imprimir Cartón", mensaje: "Si preferís jugar con papel y fibron, podés imprimir tu cartón físico en apaisado directamente desde acá.", el: "btnImprimirCartonPapel", func: () => cambiarSeccionJuego('bingo') },
             { titulo: "🎵 Pedí tu tema", mensaje: "Elegí una canción de la lista y ganá un sobre de figuritas extra cuando suene.", el: "selectCanciones", func: () => cambiarSeccionJuego('bingo') },
@@ -114,80 +113,61 @@
         };
 
         // ==========================================
-        // CONTROL DE STREAMING Y YOUTUBE
+        // CONTROL DE REPRODUCCIÓN LARGA Y VISUALIZADOR
         // ==========================================
-        let modoTransmisionActual = "automatico";
-        let loopInterval = null;
-        let retornoTimeout = null;
-        let ultimaCancionTocadaProcesada = null;
         let urlStreamActualCargada = "";
         let showEnVivoHabilitado = false;
+        let ultimaCancionTocadaProcesada = null;
 
-        function enviarComandoYouTube(func, args = []) {
-            const iframe = document.getElementById('iframeStream');
-            if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage(JSON.stringify({
-                    event: 'command',
-                    func: func,
-                    args: Array.isArray(args) ? args : [args]
-                }), '*');
-            }
+        function extraerIdYouTube(url) {
+            if (!url) return "";
+            if (url.includes("watch?v=")) return url.split("watch?v=")[1].split("&")[0];
+            if (url.includes("youtu.be/")) return url.split("youtu.be/")[1].split("?")[0];
+            return url;
         }
-
-        function iniciarLoopEsperaInfinito() {
-            if (retornoTimeout) clearTimeout(retornoTimeout);
-            if (loopInterval) clearInterval(loopInterval);
-            enviarComandoYouTube('seekTo', [0, true]);
-            enviarComandoYouTube('playVideo', []);
-            loopInterval = setInterval(() => {
-                enviarComandoYouTube('seekTo', [0, true]);
-                enviarComandoYouTube('playVideo', []);
-            }, 14000);
-        }
-
-        function reproducirClipCompilado(numeroCancion) {
-            const num = Number(numeroCancion);
-            if (!num || num < 1 || num > 60) return;
-            if (loopInterval) clearInterval(loopInterval);
-            if (retornoTimeout) clearTimeout(retornoTimeout);
-            const segundoInicio = 20 + (num - 1) * 20;
-            enviarComandoYouTube('seekTo', [segundoInicio, true]);
-            enviarComandoYouTube('playVideo', []);
-            retornoTimeout = setTimeout(() => { iniciarLoopEsperaInfinito(); }, 20000);
-        }
-
-        window.reproducirDespedidaFinal = function() {
-            if (loopInterval) clearInterval(loopInterval);
-            if (retornoTimeout) clearTimeout(retornoTimeout);
-            enviarComandoYouTube('seekTo', [1220, true]); 
-            enviarComandoYouTube('playVideo', []);
-        };
 
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
+            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
+            const numeroGiganteVisual = document.getElementById('lblNumeroGiganteVisual');
+            const nombreTemaVisual = document.getElementById('lblNombreTemaVisual');
+            
             if (!iframe) return;
-            if (modoTransmisionActual === "vivo") {
-                if (loopInterval) clearInterval(loopInterval);
-                if (retornoTimeout) clearTimeout(retornoTimeout);
-                if (linkVivo && linkVivo !== urlStreamActualCargada) {
-                    let videoId = linkVivo;
-                    if (linkVivo.includes("watch?v=")) videoId = linkVivo.split("watch?v=")[1].split("&")[0];
-                    else if (linkVivo.includes("youtu.be/")) videoId = linkVivo.split("youtu.be/")[1].split("?")[0];
-                    iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`;
-                    urlStreamActualCargada = linkVivo;
+
+            const num = Number(ultimaCancionCantada);
+
+            if (num === 999) {
+                // Despedida o cierre final
+                if (visualizadorGigante) visualizadorGigante.style.display = "none";
+                iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1"; // Video de cierre o festivo por defecto
+                return;
+            }
+
+            if (num && num >= 1 && temasDelRepertorioActivo[String(num)]) {
+                let datosTema = temasDelRepertorioActivo[String(num)];
+                let linkYoutubeTema = datosTema.url_youtube || "";
+                let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
+
+                if (linkYoutubeTema) {
+                    let videoId = extraerIdYouTube(linkYoutubeTema);
+                    if (videoId) {
+                        // Reproduce la canción completa sin cortes
+                        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                        
+                        // Actualiza el visualizador de la bola de boliche y número gigante
+                        if (visualizadorGigante) visualizadorGigante.style.display = "flex";
+                        if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
+                        if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
+                    }
                 }
             } else {
-                const num = Number(ultimaCancionCantada);
-                if (num === 999) {
-                    reproducirDespedidaFinal();
-                } else if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
-                    if (ultimaCancionTocadaProcesada !== num) {
-                        ultimaCancionTocadaProcesada = num;
-                        reproducirClipCompilado(num);
-                    }
-                } else {
-                    if (!loopInterval) { iniciarLoopEsperaInfinito(); }
+                // Modo espera o pre-show (Muestra transmisión general si hay, o pantalla de espera)
+                if (linkVivo && linkVivo !== urlStreamActualCargada) {
+                    let videoId = extraerIdYouTube(linkVivo);
+                    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
+                    urlStreamActualCargada = linkVivo;
                 }
+                if (visualizadorGigante) visualizadorGigante.style.display = "none";
             }
         }
 
@@ -387,8 +367,6 @@
                     });
                 }
 
-                gestionarReproductorSegunModo(linkStreamEncontrado, null);
-
                 const repSnap = await getDoc(doc(db, "repertorios", idRepertorioAUsar));
                 if (repSnap.exists()) {
                     temasDelRepertorioActivo = repSnap.data().canciones || {};
@@ -397,6 +375,7 @@
                     if (!listaReps.empty) temasDelRepertorioActivo = listaReps.docs[0].data().canciones || {};
                 }
                 
+                gestionarReproductorSegunModo(linkStreamEncontrado, snapEstado.exists() ? snapEstado.data().ultima_cancion_tocada : 0);
                 aplicarBloqueoPreShowEstricto();
                 actualizarSelectorCancionesDinamico();
                 renderizarBandejaTrivias();
@@ -417,7 +396,6 @@
                 let recaudacionReal = totalPagadosContados * precioEntradaShow;
                 pozoTotalCalculado = Math.max(basePozo, recaudacionReal);
                 
-                // Mostramos el pozo total visual de forma completa arriba (arranca en 10.000 y sube)
                 const lblPozo = document.getElementById('lblMontoPozoBingo');
                 if (lblPozo) lblPozo.innerText = `$${pozoTotalCalculado.toLocaleString('es-AR')}`;
             } catch(e) {}
@@ -675,7 +653,6 @@
             iniciarEscuchaChat();
             renderizarMisRepetidas();
             iniciarEscuchaSalaCambios();
-            iniciarLoopEsperaInfinito();
             
             iniciarTour();
 
@@ -807,7 +784,7 @@
                 contenedor.appendChild(boton);
             });
             
-            // 🌟 1. BOLA LOCA COMO PREMIO INSTANTÁNEO (INDEPENDIENTE)
+            // 🌟 BOLA LOCA COMO PREMIO INSTANTÁNEO
             let ultimoNumeroCantado = parseInt(String(estadoGlobal.ultima_cancion_tocada || "0").replace(/\D/g, ''), 10);
             let numeroClaveBolaLoca = parseInt(String(estadoGlobal.numero_clave_noche || "-999").replace(/\D/g, ''), 10);
             
@@ -826,12 +803,10 @@
 
                 let premioTexto = modalidadElegida === 'presencial' ? "¡Ganaste un trago en la barra 🍹!" : "¡Ganaste un pase libre para el próximo show 🏠!";
                 alert(`🔥 ¡BOLA LOCA ENCONTRADA! 🔥\nTu cartón tenía el número #${String(numeroClaveBolaLoca).padStart(2,'0')}.\n${premioTexto}\nAvisale al personal del show.`);
-                return; // Cortamos para que no se mezcle con línea ni bingo
+                return;
             }
 
-            // Si ya cantó bingo, congelamos las líneas
             let bingoYaCantadoGlobal = (estadoGlobal.bingo_ganado === true || yaCanteBingo);
-
             let totalLineasHabilitadasMax = Number(estadoGlobal.lineas_premiadas_max || 1);
             let lineasActualesContadas = 0;
             let f1Completa = (fila1.length > 0 && fila1.every(n => numerosSalidos.includes(n) || marcadosManualmente.includes(n)));
@@ -848,7 +823,7 @@
                     
                     let porcentajePremio = (lineasActualesContadas === 1) ? 0.20 : 0.15;
                     let montoPremioBruto = pozoTotalCalculado * porcentajePremio;
-                    let montoPremioRedondeado = Math.floor(montoPremioBruto); // Redondeado para abajo sin decimales
+                    let montoPremioRedondeado = Math.floor(montoPremioBruto);
 
                     try { 
                         addDoc(collection(db, "notificaciones_escenario"), { 
@@ -943,7 +918,7 @@
                     idAleatorio = Math.floor(Math.random() * 6) + 55;
                     if (idAleatorio > totalDisponiblesRepertorio) idAleatorio = totalDisponiblesRepertorio;
                 } else {
-                    idAleatorio = Math.floor(Math.random() * 54) + 1; // Comunes (1 a 54)
+                    idAleatorio = Math.floor(Math.random() * 54) + 1;
                 }
 
                 let esDorada = (idAleatorio >= 55);
@@ -1003,7 +978,7 @@
             sobreAbierto.forEach(fig => {
                 let tarjeta = document.createElement('div'); tarjeta.className = `fig-premio ${fig.tipo}`;
                 let etiquetaTipo = '✨ ¡PEGADA!', colorTipo = 'var(--neon-cyan)', icono = '🎫';
-                if (fig.tipo === 'gold') { etiquetaTipo = '👑 ¡ORO!'; colorTipo = 'var(--gold)'; icono = '🌟'; }
+                if (fig.tipo === 'gold') { etiquetaTipo = '👑 ¡ORO!'; colorTipo = 'var(--gold);'; icono = '🌟'; }
                 else if (fig.tipo === 'repetida') { etiquetaTipo = '🔄 ¡REPETIDA!'; colorTipo = '#94a3b8'; }
                 tarjeta.innerHTML = `<div style="font-size:0.7rem; color:#94a3b8;">#${String(fig.id).padStart(2,'0')}</div><div style="font-size:1.5rem; margin:5px 0;">${icono}</div><div style="font-size:0.75rem; font-weight:bold; color:${colorTipo}">${etiquetaTipo}</div>`;
                 contenedorSobre.appendChild(tarjeta);
@@ -1095,7 +1070,6 @@
             });
         }
 
-        // 🌟 LÓGICA DE CANJE DE DORADA REPETIDA POR 3 FIGURITAS NORMALES FALTANTES
         window.canjearDoradaRepetidaPorTres = async function(idFigurita) {
             if (!confirm(`¿Querés quemar tu figurita dorada repetida #${idFigurita} a cambio de 3 figuritas normales nuevas para tu álbum?`)) return;
             let index = misRepetidas.indexOf(Number(idFigurita));
@@ -1106,7 +1080,7 @@
                 let ganadas = 0;
                 let intentitos = 0;
                 while(ganadas < 3 && intentitos < 50) {
-                    let randId = Math.floor(Math.random() * 54) + 1; // De la 1 a la 54 (normales)
+                    let randId = Math.floor(Math.random() * 54) + 1;
                     if (!misFiguritasColeccionadas.includes(randId)) {
                         misFiguritasColeccionadas.push(randId);
                         ganadas++;
@@ -1226,22 +1200,6 @@
             try { await addDoc(collection(db, "chat_espectadores"), { nombre: infoUsuarioLogueado.nombre, mensaje: texto, timestamp: new Date() }); input.value = ""; } catch(e) {}
         };
 
-        function iniciarEscuchaChat() {
-            try {
-                const q = query(collection(db, "chat_espectadores"), orderBy("timestamp", "desc"), limit(20));
-                onSnapshot(q, (snapshot) => {
-                    const contenedorChat = document.getElementById('contenedorMensajesChat'); if(!contenedorChat) return;
-                    contenedorChat.innerHTML = "";
-                    snapshot.forEach(doc => {
-                        let data = doc.data(); let div = document.createElement('div');
-                        div.style.cssText = "margin-bottom:8px; font-size:0.85rem; border-bottom:1px solid #24344f; padding-bottom:4px;";
-                        div.innerHTML = `<b style="color:var(--neon-cyan);">${data.nombre}:</b> ${data.mensaje}`;
-                        contenedorChat.appendChild(div);
-                    });
-                });
-            } catch(e) {}
-        }
-
         function renderizarCatalogoCanjeDinamico() {
             const grilla = document.getElementById('grillaPremiosCanjeInterna'); const avisoEstado = document.getElementById('avisoEstadoTienda');
             if (!grilla) return;
@@ -1352,15 +1310,24 @@
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
+        
+        /* 🌟 ESTILOS DE LA PANTALLA DE FIESTA Y BOLA DE BOLICHE */
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        
+        .visualizador-fiesta { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a103c 0%, #050510 100%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 10px; overflow: hidden; }
+        .bola-boliche { width: 70px; height: 70px; background: radial-gradient(circle at 30% 30%, #fff, #888 40%, #222 80%); border-radius: 50%; box-shadow: 0 0 25px var(--neon-cyan), inset 0 0 10px #fff; animation: girarBola 4s linear infinite, flotarBola 2s ease-in-out infinite alternate; margin-bottom: 10px; }
+        @keyframes girarBola { 0% { background-position: 0 0; } 100% { background-position: 50px 50px; } }
+        @keyframes flotarBola { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-8px) scale(1.05); } }
+        .numero-gigante-visual { font-size: 3rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,209,102,0.8); line-height: 1; margin-bottom: 4px; }
+        .nombre-tema-visual { font-size: 0.85rem; color: var(--neon-cyan); font-weight: bold; text-transform: uppercase; text-align: center; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .item-figurita { background: #0a0e17; border: 2px dashed #2a3f64; border-radius: 10px; padding: 8px; text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
         .item-figurita.desbloqueada { border: 2px solid var(--neon-cyan); background: #151f32; }
         
-        /* ESTILOS DE LA FIGURITA DORADA (ÚLTIMA PÁGINA) */
         .item-figurita.desbloqueada-gold { 
             border: 2px solid var(--gold); 
             background: linear-gradient(135deg, rgba(255,209,102,0.3) 0%, rgba(20,20,20,0.9) 100%);
@@ -1388,7 +1355,6 @@
         .casillero-intercambio-mini.te-falta { background: rgba(0, 245, 212, 0.15); border: 2px solid var(--neon-cyan); color: var(--neon-cyan); }
         .casillero-intercambio-mini.le-sirve { background: rgba(255, 209, 102, 0.15); border: 2px solid var(--gold); color: var(--gold); }
         
-        /* ESTILOS DEL TOUR / GLOBO CENTRADO SEGURO */
         .tour-resaltado { border: 3px solid var(--gold) !important; box-shadow: 0 0 35px var(--gold) !important; transition: all 0.3s ease; position: relative; z-index: 5001 !important; }
         .tour-backdrop-oscuro { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 5000; display: none; }
         .modal-overlay-tour { position: fixed; z-index: 5002; display: none; width: 90%; max-width: 320px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
@@ -1408,10 +1374,8 @@
 </head>
 <body>
 
-<!-- FONDO TRANSLÚCIDO OSCURO PARA EL TOUR -->
 <div id="tourBackdrop" class="tour-backdrop-oscuro" onclick="siguientePasoTour()"></div>
 
-<!-- MODAL TOUR GLOBO CENTRADO -->
 <div id="tourOverlay" class="modal-overlay-tour">
     <div class="modal-contenido-tour">
         <h2 id="tourTitulo">¡Bienvenido!</h2>
@@ -1423,7 +1387,6 @@
     </div>
 </div>
 
-<!-- MODALES -->
 <div id="modalZoomFigurita" class="modal-overlay" onclick="cerrarModalZoom()">
     <div class="modal-contenido" style="max-width: 340px; border-color: var(--gold); background: #0a0e17;" onclick="event.stopPropagation()">
         <h2 id="tituloZoomFigurita" style="font-size: 1rem; color: var(--gold); margin-bottom: 8px;"></h2>
@@ -1481,7 +1444,6 @@
 
 <div class="contenedor-centrado">
     
-    <!-- LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
         <input type="text" id="txtNombre" placeholder="Tu Nombre y Apellido">
@@ -1497,7 +1459,6 @@
         <button class="btn-accion" onclick="intentarIngresarAlShow()">Ingresar al Show 🎫</button>
     </div>
 
-    <!-- PANTALLA DE ESPERA CON VIDEO TUTORIAL -->
     <div id="cajaNoHabilitado" class="card-caja" style="display:none; text-align:center;">
         <h2 style="color: var(--gold);">⏳ Esperando Habilitación</h2>
         <p style="font-size: 0.8rem; color: #cbd5e1; margin: 8px 0;">Mirá el video tutorial mientras te habilitamos:</p>
@@ -1517,7 +1478,6 @@
     
     <div id="cajaCargando" class="card-caja" style="display:none; text-align:center;"><p>Cargando sala de juego...</p></div>
     
-    <!-- ZONA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
         <div class="barra-pozo-vivo">
@@ -1540,12 +1500,18 @@
             <button id="tabBtn_canje" class="btn-pestana" onclick="cambiarSeccionJuego('canje')">🎁 Canjes</button>
         </div>
 
-        <!-- VISTA 1: BINGO -->
+        <!-- VISTA 1: BINGO CON VISUALIZADOR DE BOLA DE BOLICHE -->
         <div id="vistaBingo">
             <div class="card-caja">
-                <h2>📺 Transmisión Oficial</h2>
+                <h2>📺 Transmisión y Fiesta</h2>
                 <div class="video-container-simple">
-                    <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    <!-- VISUALIZADOR FIESTA CON BOLA DE BOLICHE Y NÚMERO GIGANTE -->
+                    <div id="visualizadorBolaBoliche" class="visualizador-fiesta">
+                        <div class="bola-boliche"></div>
+                        <div id="lblNumeroGiganteVisual" class="numero-gigante-visual">#00</div>
+                        <div id="lblNombreTemaVisual" class="nombre-tema-visual">CARGANDO FIESTA...</div>
+                    </div>
+                    <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 </div>
             </div>
 
@@ -1576,7 +1542,7 @@
             <div class="card-caja">
                 <h2>📘 Mi Álbum (60 Figuritas)</h2>
                 <p id="lblProgresoAlbum" style="font-size: 0.8rem; color: var(--gold); font-weight: bold; margin-bottom: 10px;">Pegadas: 0 / 60</p>
-                <button id="btnAbrirSobreAlbum" class="btn-accion" style="display:none; margin-bottom: 10px; background: var(--gold); color: var(--azul-fondo);" onclick="abrirSobreAcumulado()">🎁 ¡Abrir Sobre!</button>
+                <button id="btnAbrirSobreAlbum" class="btn-accion" style="display:none; margin-bottom: 10px; background: var(--gold); color: #000;" onclick="abrirSobreAcumulado()">🎁 ¡Abrir Sobre!</button>
                 <div class="controles-album">
                     <button class="btn-pagina" onclick="cambiarPaginaAlbum(-1)">◀ Anterior</button>
                     <span id="lblPaginaActual" style="font-weight: bold; color: var(--neon-cyan); font-size: 0.85rem;">Página 1 / 10</span>
