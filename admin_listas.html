@@ -125,7 +125,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO (LINK DE YOUTUBE AL FINAL)
+        // 4. SUBIR REPERTORIO (CON ORDEN ESTRICTO DE 9 COLUMNAS)
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -141,15 +141,16 @@
                 lineas.forEach((linea, index) => {
                     if (linea.trim() === "") return;
                     let partes = linea.split('\t');
+                    
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
                     let nombre = partes[1] ? partes[1].trim() : linea.trim();
-                    let urlFig = partes[2] ? partes[2].trim() : "";
-                    let urlFigGold = partes[3] ? partes[3].trim() : "";
-                    let pregunta = partes[4] ? partes[4].trim() : "";
-                    let opA = partes[5] ? partes[5].trim() : "";
-                    let opB = partes[6] ? partes[6].trim() : "";
-                    let correcta = partes[7] ? partes[7].trim() : "";
-                    let urlYoutube = partes[8] ? partes[8].trim() : ""; // 🎵 Link de YouTube al final
+                    let urlFig = partes[2] ? partes[2].trim() : "";       // Dir. Fig Normal
+                    let urlFigGold = partes[3] ? partes[3].trim() : "";  // Dir. Fig Oro
+                    let pregunta = partes[4] ? partes[4].trim() : "";    // Pregunta Trivia
+                    let opA = partes[5] ? partes[5].trim() : "";          // Opción A
+                    let opB = partes[6] ? partes[6].trim() : "";          // Opción B
+                    let correcta = partes[7] ? partes[7].trim() : "";    // Respuesta Correcta
+                    let urlYoutube = partes[8] ? partes[8].trim() : "";  // Link de YouTube al final
 
                     cancionesObj[numero] = {
                         nombre: nombre,
@@ -168,7 +169,7 @@
                     canciones: cancionesObj
                 });
 
-                alert("¡Repertorio subido con éxito respetando tus columnas originales!");
+                alert("¡Repertorio subido con éxito y perfectamente ordenado!");
                 location.reload();
             } catch(e) {
                 alert("Error al subir repertorio: " + e.message);
