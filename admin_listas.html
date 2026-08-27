@@ -39,7 +39,7 @@
             } catch(e) { console.log("Error al cargar repertorios: ", e); }
         });
 
-        // 1. GESTIÓN DE SHOWS (Sincronizado con estado_show/actual para que lo lea el Index y Cartón)
+        // 1. GESTIÓN DE SHOWS
         window.guardarInfoEvento = async function() {
             const idShow = sanitizarID(document.getElementById('txtIdShow').value);
             const lugar = document.getElementById('txtLugarInput').value.trim();
@@ -54,14 +54,12 @@
             btn.innerText = "Guardando..."; btn.disabled = true;
 
             try {
-                // Guarda en la cartelera de shows
                 await setDoc(doc(db, "shows_activos", idShow), {
                     id_show: idShow, lugar_evento: lugar, fecha_evento: fecha,
                     link_stream: linkStream, repertorio_activo: repActivo,
                     lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
                 }, { merge: true });
                 
-                // Actualiza el estado actual que leen el index y el carton de los usuarios
                 await setDoc(doc(db, "estado_show", "actual"), {
                     id_show_activo: idShow, fecha_show: fecha, link_stream: linkStream,
                     repertorio_activo: repActivo, lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
@@ -71,7 +69,7 @@
             } catch(e) { alert("Error al guardar: " + e.message); } finally { btn.innerText = "Publicar Show 📢"; btn.disabled = false; }
         };
 
-        // 2. RESETEO (BOTÓN VERDE)
+        // 2. RESETEO
         window.destruirYActivarSimulacionRapida = async function() {
             if (!confirm("⚠️ ¿INICIAR NUEVA PARTIDA?\nSe vaciará la sala pero SE MANTIENEN los puntos.")) return;
             const btn = document.getElementById('btnResetAbsoluto');
@@ -99,7 +97,7 @@
             } catch(e) { alert("Error: " + e.message); } finally { btn.innerText = "⚡ REINICIAR FECHA (GUARDA PUNTOS)"; btn.disabled = false; }
         };
 
-        // 3. GESTIÓN DE PREMIOS (MASIVA)
+        // 3. GESTIÓN DE PREMIOS
         window.procesarSubidaPremios = async function() {
             const texto = document.getElementById('textoPremios').value;
             const lineas = texto.split('\n');
@@ -127,7 +125,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO (8 COLUMNAS LIMPIAS Y ORDENADAS)
+        // 4. SUBIR REPERTORIO (8 COLUMNAS LIMPIAS, SIN CAMPOS FANTASMA)
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -147,7 +145,7 @@
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
                     let nombre = partes[1] ? partes[1].trim() : "";                // 1. Nombre
                     let urlFig = partes[2] ? partes[2].trim() : "";                // 2. Figurita normal
-                    let pregunta = partes[3] ? partes[3].trim() : "";              // 3. Pregunta
+                    let pregunta = partes[3] ? partes[3].trim() : "";              // 3. Pregunta Trivia
                     let opA = partes[4] ? partes[4].trim() : "";                    // 4. Opción A
                     let opB = partes[5] ? partes[5].trim() : "";                    // 5. Opción B
                     let correcta = partes[6] ? partes[6].trim() : "";              // 6. Respuesta correcta
@@ -186,9 +184,9 @@
             if (confirm(`¿BORRAR '${idShow}'?`)) { await deleteDoc(doc(db, "shows_activos", idShow)); alert("Borrado."); }
         };
 
-        // UI Realtime para premios
         onSnapshot(collection(db, "catalogo_premios"), (snapshot) => {
             const contenedor = document.getElementById('listaPremiosAdminListas');
+            if (!contenedor) return;
             contenedor.innerHTML = "";
             snapshot.forEach(docSnap => {
                 let p = docSnap.data();
@@ -205,8 +203,8 @@
         * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; }
         body { background: var(--dark); color: #fff; padding: 20px; }
         .panel-container { max-width: 700px; margin: 0 auto; }
-        <h1> { font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px; }
         .seccion-card { background: var(--card); padding: 20px; border-radius: 14px; margin-bottom: 20px; border: 1px solid #334155; }
+        h1 { font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px; }
         h2 { font-size: 1.1rem; margin-bottom: 15px; color: var(--gold); text-transform: uppercase; }
         label { font-size: 0.8rem; color: #94a3b8; font-weight: bold; margin-bottom: 5px; display: block; }
         input, select, textarea { width: 100%; padding: 10px; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 8px; margin-bottom: 10px; }
@@ -221,9 +219,8 @@
 </head>
 <body>
     <div class="panel-container">
-        <h1 style="font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px;">🎛️ Centro de Cargas MULTI-SHOW</h1>
+        <h1>🎛️ Centro de Cargas MULTI-SHOW</h1>
 
-        <!-- 1. CREAR / MODIFICAR SHOW (CON LÍNEAS Y BOLA LOCA AGREGADAS) -->
         <div class="seccion-card">
             <h2>📅 1. Crear / Modificar Show</h2>
             <input type="text" id="txtIdShow" placeholder="Código Único (show_viernes_12)">
@@ -253,13 +250,11 @@
             <button class="btn btn-borrar" onclick="borrarShowDeCartelera()">🗑️ Borrar Show</button>
         </div>
 
-        <!-- 2. CONTROL DE NUEVA PARTIDA -->
         <div class="seccion-card">
             <h2 style="color: var(--play);">⚡ Control de Nueva Partida</h2>
             <button class="btn btn-destructive" id="btnResetAbsoluto" onclick="destruirYActivarSimulacionRapida()">⚡ REINICIAR FECHA (GUARDA PUNTOS)</button>
         </div>
 
-        <!-- 3. CARGA MASIVA DE PREMIOS -->
         <div class="seccion-card">
             <h2 style="color: var(--gold);">🎁 3. Carga Masiva de Premios</h2>
             <label>Formato: Titulo [TAB] Puntos [TAB] Tipo [TAB] Descripción</label>
@@ -269,11 +264,10 @@ Kilo de Helado	1500	casa	Voucher digital"></textarea>
             <div id="listaPremiosAdminListas" style="margin-top: 15px; display: grid; gap: 6px;"></div>
         </div>
 
-        <!-- 4. SUBIR REPERTORIO -->
         <div class="seccion-card">
             <h2>🎵 2. Subir Repertorio</h2>
             <input type="text" id="idRepertorio" placeholder="Nombre de lista (ID)">
-            <textarea id="textoRepertorio" placeholder="Nº [TAB] Nombre [TAB] Fig Normal [TAB] Fig Oro [TAB] Pregunta Trivia [TAB] Op A [TAB] Op B [TAB] Correcta" style="height: 120px;"></textarea>
+            <textarea id="textoRepertorio" placeholder="Nº [TAB] Nombre [TAB] Fig Normal [TAB] Pregunta Trivia [TAB] Op A [TAB] Op B [TAB] Correcta [TAB] YouTube Link" style="height: 120px;"></textarea>
             <button class="btn btn-music" id="btnSubir" onclick="procesarYSubirRepertorio()">Subir Repertorio 🚀</button>
         </div>
     </div>
