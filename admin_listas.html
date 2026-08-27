@@ -39,7 +39,7 @@
             } catch(e) { console.log("Error al cargar repertorios: ", e); }
         });
 
-        // 1. GESTIÓN DE SHOWS (Sincronizado con estado_show/actual para que lo lea el Index y Cartón)
+        // 1. GESTIÓN DE SHOWS
         window.guardarInfoEvento = async function() {
             const idShow = sanitizarID(document.getElementById('txtIdShow').value);
             const lugar = document.getElementById('txtLugarInput').value.trim();
@@ -54,14 +54,12 @@
             btn.innerText = "Guardando..."; btn.disabled = true;
 
             try {
-                // Guarda en la cartelera de shows
                 await setDoc(doc(db, "shows_activos", idShow), {
                     id_show: idShow, lugar_evento: lugar, fecha_evento: fecha,
                     link_stream: linkStream, repertorio_activo: repActivo,
                     lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
                 }, { merge: true });
                 
-                // Actualiza el estado actual que leen el index y el carton de los usuarios
                 await setDoc(doc(db, "estado_show", "actual"), {
                     id_show_activo: idShow, fecha_show: fecha, link_stream: linkStream,
                     repertorio_activo: repActivo, lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
@@ -127,7 +125,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 4. SUBIR REPERTORIO
+        // 4. SUBIR REPERTORIO CON LINK DE YOUTUBE
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -145,15 +143,17 @@
                     let partes = linea.split('\t');
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
                     let nombre = partes[1] ? partes[1].trim() : linea.trim();
-                    let urlFig = partes[2] ? partes[2].trim() : "";
-                    let urlFigGold = partes[3] ? partes[3].trim() : "";
-                    let pregunta = partes[4] ? partes[4].trim() : "";
-                    let opA = partes[5] ? partes[5].trim() : "";
-                    let opB = partes[6] ? partes[6].trim() : "";
-                    let correcta = partes[7] ? partes[7].trim() : "";
+                    let urlYoutube = partes[2] ? partes[2].trim() : ""; // 🎵 NUEVO: Link YouTube para reproducción larga
+                    let urlFig = partes[3] ? partes[3].trim() : "";
+                    let urlFigGold = partes[4] ? partes[4].trim() : "";
+                    let pregunta = partes[5] ? partes[5].trim() : "";
+                    let opA = partes[6] ? partes[6].trim() : "";
+                    let opB = partes[7] ? partes[7].trim() : "";
+                    let correcta = partes[8] ? partes[8].trim() : "";
 
                     cancionesObj[numero] = {
                         nombre: nombre,
+                        url_youtube: urlYoutube, // Guardamos la URL de YouTube de cada tema
                         url_fig: urlFig,
                         url_fig_gold: urlFigGold,
                         pregunta: pregunta,
@@ -168,7 +168,7 @@
                     canciones: cancionesObj
                 });
 
-                alert("¡Repertorio subido con éxito!");
+                alert("¡Repertorio subido con éxito y preparado para reproducción larga!");
                 location.reload();
             } catch(e) {
                 alert("Error al subir repertorio: " + e.message);
@@ -182,7 +182,6 @@
             if (confirm(`¿BORRAR '${idShow}'?`)) { await deleteDoc(doc(db, "shows_activos", idShow)); alert("Borrado."); }
         };
 
-        // UI Realtime para premios
         onSnapshot(collection(db, "catalogo_premios"), (snapshot) => {
             const contenedor = document.getElementById('listaPremiosAdminListas');
             contenedor.innerHTML = "";
@@ -201,7 +200,7 @@
         * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; }
         body { background: var(--dark); color: #fff; padding: 20px; }
         .panel-container { max-width: 700px; margin: 0 auto; }
-        <h1> { font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px; }
+        h1 { font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px; }
         .seccion-card { background: var(--card); padding: 20px; border-radius: 14px; margin-bottom: 20px; border: 1px solid #334155; }
         h2 { font-size: 1.1rem; margin-bottom: 15px; color: var(--gold); text-transform: uppercase; }
         label { font-size: 0.8rem; color: #94a3b8; font-weight: bold; margin-bottom: 5px; display: block; }
@@ -217,9 +216,9 @@
 </head>
 <body>
     <div class="panel-container">
-        <h1 style="font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px;">🎛️ Centro de Cargas MULTI-SHOW</h1>
+        <h1>🎛️ Centro de Cargas MULTI-SHOW</h1>
 
-        <!-- 1. CREAR / MODIFICAR SHOW (CON LÍNEAS Y BOLA LOCA AGREGADAS) -->
+        <!-- 1. CREAR / MODIFICAR SHOW -->
         <div class="seccion-card">
             <h2>📅 1. Crear / Modificar Show</h2>
             <input type="text" id="txtIdShow" placeholder="Código Único (show_viernes_12)">
@@ -227,7 +226,7 @@
                 <input type="text" id="txtLugarInput" placeholder="Lugar">
                 <input type="text" id="txtFechaInput" placeholder="Fecha">
             </div>
-            <input type="text" id="txtLinkStream" placeholder="Link YouTube (Embed)">
+            <input type="text" id="txtLinkStream" placeholder="Link YouTube del Stream General">
             <select id="selectRepertorioActivo"></select>
             
             <div class="row-grid-3" style="margin-top: 5px;">
@@ -265,11 +264,12 @@ Kilo de Helado	1500	casa	Voucher digital"></textarea>
             <div id="listaPremiosAdminListas" style="margin-top: 15px; display: grid; gap: 6px;"></div>
         </div>
 
-        <!-- 4. SUBIR REPERTORIO -->
+        <!-- 4. SUBIR REPERTORIO (ACTUALIZADO CON LINK DE YOUTUBE) -->
         <div class="seccion-card">
             <h2>🎵 2. Subir Repertorio</h2>
             <input type="text" id="idRepertorio" placeholder="Nombre de lista (ID)">
-            <textarea id="textoRepertorio" placeholder="Nº [TAB] Nombre [TAB] Fig Normal [TAB] Fig Oro [TAB] Pregunta Trivia [TAB] Op A [TAB] Op B [TAB] Correcta" style="height: 120px;"></textarea>
+            <label style="color: var(--cyan); margin-bottom: 8px;">Columnas requeridas (separadas por TAB):<br><code>Nº [TAB] Nombre [TAB] Link YouTube [TAB] Fig Normal [TAB] Fig Oro [TAB] Pregunta Trivia [TAB] Op A [TAB] Op B [TAB] Correcta</code></label>
+            <textarea id="textoRepertorio" placeholder="1	Tema Ejemplo	https://youtu.be/xxxxx	url_normal	url_gold	¿Pregunta?	A	B	Correcta" style="height: 120px;"></textarea>
             <button class="btn btn-music" id="btnSubir" onclick="procesarYSubirRepertorio()">Subir Repertorio 🚀</button>
         </div>
     </div>
