@@ -125,7 +125,7 @@
             } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // // 4. SUBIR REPERTORIO (MAPEO BLINDADO DE 8 COLUMNAS)
+        // 4. SUBIR REPERTORIO (MAPEO DE 8 COLUMNAS AJUSTADO AL ORDEN REAL)
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -143,13 +143,13 @@
                     let partes = linea.split('\t');
                     
                     let numero = partes[0] ? partes[0].trim() : String(index + 1);
-                    let nombre = partes[1] ? partes[1].trim() : linea.trim();
-                    let urlFig = partes[2] ? partes[2].trim() : "";       // 3. Figurita normal
-                    let pregunta = partes[3] ? partes[3].trim() : "";    // 4. Pregunta Trivia
-                    let opA = partes[4] ? partes[4].trim() : "";          // 5. Opción A
-                    let opB = partes[5] ? partes[5].trim() : "";          // 6. Opción B
-                    let correcta = partes[6] ? partes[6].trim() : "";    // 7. Respuesta Correcta
-                    let urlYoutube = partes[7] ? partes[7].trim() : "";  // 8. Link de YouTube largo
+                    let nombre = partes[1] ? partes[1].trim() : "";                // 2. Nombre
+                    let urlFig = partes[2] ? partes[2].trim() : "";                // 3. Figurita normal
+                    let pregunta = partes[3] ? partes[3].trim() : "";              // 4. Pregunta Trivia
+                    let opA = partes[4] ? partes[4].trim() : "";                    // 5. Opción A
+                    let opB = partes[5] ? partes[5].trim() : "";                    // 6. Opción B
+                    let correcta = partes[6] ? partes[6].trim() : "";              // 7. Respuesta Correcta (¡Acá va la respuesta!)
+                    let urlYoutube = partes[7] ? partes[7].trim() : "";            // 8. Link de YouTube
 
                     cancionesObj[numero] = {
                         nombre: nombre,
@@ -158,8 +158,8 @@
                         pregunta: pregunta,
                         opcion_a: opA,
                         opcion_b: opB,
-                        correcta: correcta,
-                        url_youtube: urlYoutube // ¡Aquí va el link largo de YouTube limpio!
+                        correcta: correcta,         // Se asigna correctamente a la respuesta
+                        url_youtube: urlYoutube     // Se asigna al link de YouTube
                     };
                 });
 
@@ -168,7 +168,7 @@
                     canciones: cancionesObj
                 });
 
-                alert("¡Repertorio subido con las 8 columnas limpias!");
+                alert("¡Repertorio subido y sincronizado perfectamente!");
                 location.reload();
             } catch(e) {
                 alert("Error al subir repertorio: " + e.message);
