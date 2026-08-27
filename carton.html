@@ -113,10 +113,9 @@
         };
 
         // ==========================================
-        // CONTROL DE REPRODUCCIÓN (CANCIONES COMPLETAS Y BOLA DE BOLICHE)
+        // CONTROL DE REPRODUCCIÓN (CANCIONES COMPLETAS)
         // ==========================================
         let urlStreamActualCargada = "";
-        let showEnVivoHabilitado = false;
 
         function extraerIdYouTube(url) {
             if (!url) return "";
@@ -136,7 +135,6 @@
             const num = Number(ultimaCancionCantada);
 
             if (num === 999) {
-                // Cierre final / Despedida
                 if (visualizadorGigante) visualizadorGigante.style.display = "none";
                 iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1";
                 return;
@@ -150,10 +148,7 @@
                 if (linkYoutubeTema) {
                     let videoId = extraerIdYouTube(linkYoutubeTema);
                     if (videoId) {
-                        // Reproduce la canción completa de largo sin cortes
                         iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                        
-                        // Muestra el visualizador de la bola de boliche con el número gigante
                         if (visualizadorGigante) visualizadorGigante.style.display = "flex";
                         if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
                         if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
@@ -304,7 +299,7 @@
         let temasDelRepertorioActivo = {}; 
         let cancionesEnEsperaEscenario = [];
         let totalTemasEnCola = 0;
-        let tamañoCartonDinamico = 9;
+        let tamañoCartonDinamico = 15;
         let yaCanteLinea = false; let yaCanteBingo = false;
         let yaReclameBolaLoca = false;
         let fila1 = [], fila2 = [], fila3 = [];
@@ -578,12 +573,9 @@
 
             let codigosDisponibles = Object.keys(temasDelRepertorioActivo).length > 0 ? Object.keys(temasDelRepertorioActivo).map(String) : [];
             if (codigosDisponibles.length === 0) {
-                tamañoCartonDinamico = 9;
-                for(let i=1; i<=9; i++) codigosDisponibles.push(String(i));
-                temasDelRepertorioActivo = {"1":{"nombre":"T1"},"2":{"nombre":"T2"},"3":{"nombre":"T3"},"4":{"nombre":"T4"},"5":{"nombre":"T5"},"6":{"nombre":"T6"},"7":{"nombre":"T7"},"8":{"nombre":"T8"},"9":{"nombre":"T9"}};
-            } else {
-                tamañoCartonDinamico = (codigosDisponibles.length < 30) ? 9 : 15;
+                for(let i=1; i<=60; i++) codigosDisponibles.push(String(i));
             }
+            tamañoCartonDinamico = (codigosDisponibles.length < 30) ? codigosDisponibles.length : 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
@@ -704,12 +696,12 @@
                     <style>
                         @page { size: A4 landscape; margin: 15mm; }
                         * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-                        body { background: #fff; color: #000; text-align: center; padding: 10px; margin: 0; }
+                        body { background: #fff; color: #000; text-align: center; padding: 10mm; margin: 0; }
                         .tarjeta-impresion { border: 3px solid #000; border-radius: 12px; padding: 25px; max-width: 650px; margin: 0 auto; background: #fff; }
                         h1 { font-size: 1.6rem; text-transform: uppercase; margin: 0 0 5px 0; }
                         .sub { font-size: 0.9rem; color: #555; margin-bottom: 15px; }
                         .info-box { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; }
-                        .grilla-impresion { display: grid; grid-template-columns: repeat(${tamañoCartonDinamico === 9 ? 3 : 5}, 1fr); gap: 15px; }
+                        .grilla-impresion { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
                         .casillero-impresion { border: 3px solid #000; border-radius: 10px; aspect-ratio: 1.2; display: flex; align-items: center; justify-content: center; background: #fdfdfd; }
                         .nro { font-size: 2.5rem; font-weight: 900; color: #000; }
                         .footer { margin-top: 25px; font-size: 0.85rem; color: #333; border-top: 1px dashed #000; padding-top: 10px; font-weight: bold; }
@@ -1311,7 +1303,7 @@
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
         
-        /* 🌟 CONTENEDOR Y VISUALIZADOR DE BOLA DE BOLICHE */
+        /* 🌟 CONTENEDOR Y VISUALIZADOR DE BOLA DE BOLICHE (MANTIENE TUS 60 FIGURITAS ORIGINALES) */
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
         
@@ -1324,7 +1316,7 @@
 
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
-        .grilla-album { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .item-figurita { background: #0a0e17; border: 2px dashed #2a3f64; border-radius: 10px; padding: 8px; text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
         .item-figurita.desbloqueada { border: 2px solid var(--neon-cyan); background: #151f32; }
         
