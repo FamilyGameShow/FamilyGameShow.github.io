@@ -597,7 +597,8 @@
             if (codigosDisponibles.length === 0) {
                 for(let i=1; i<=60; i++) codigosDisponibles.push(String(i));
             }
-            tamañoCartonDinamico = (codigosDisponibles.length < 30) ? codigosDisponibles.length : 15;
+            // Si hay menos de 15 canciones, usa esa cantidad exacta (ej: 9). Si hay más, lo clava en 15.
+tamañoCartonDinamico = codigosDisponibles.length <= 15 ? codigosDisponibles.length : 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
