@@ -530,7 +530,7 @@
                 for(let i=1; i<=60; i++) codigosDisponibles.push(String(i));
             }
             
-            tamañoCartonDinamico = codigosDisponibles.length <= 15 ? codigosDisponibles.length : 15;
+            tamañoCartonDinamico = 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
@@ -990,7 +990,6 @@
                 }
 
                 let urlImagen = datosCancionVinculada.url_fig || datosCancionVinculada.url_figurita || "";
-                if (esDorada && datosCancionVinculada.url_fig_gold) urlImagen = datosCancionVinculada.url_fig_gold;
 
                 let nombreTemaLimpio = String(datosCancionVinculada.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
