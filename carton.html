@@ -7,7 +7,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, collection, addDoc, getDoc, setDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, collection, addDoc, getDoc, setDoc, getDocs, query, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
@@ -43,7 +43,6 @@
         let fila1 = [], fila2 = [], fila3 = [];
 
         let precioEntradaShow = 3000;
-        let totalPagadosContados = 0;
         let pozoTotalCalculado = 10000;
 
         let paginaActualAlbum = 1;
@@ -59,7 +58,6 @@
             history.pushState(null, null, location.href);
             window.onpopstate = function () { history.pushState(null, null, location.href); };
 
-            // Enlace directo de seguridad para los botones de login
             const btnPresencial = document.getElementById('btnModoPresencial');
             const btnCasa = document.getElementById('btnModoCasa');
             const btnIngresar = document.getElementById('btnIngresarShow');
@@ -365,10 +363,14 @@
             
             document.getElementById('lblNroCartonBadge').innerText = String(nroCartonAsignado).padStart(3, '0');
             document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
-            document.getElementById('lblNombreUsuarioCanje').innerText = infoUsuarioLogueado.nombre;
+            document.getElementById('lblNombreUsuarioCanje').innerText = infoUsuarioLogueado.nombre || "Participante";
             document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
             
             renderizarMatrizNumeros();
+            renderizarPaginaAlbum();
+            renderizarBandejaTrivias();
+            renderizarMisRepetidas();
+            renderizarCatalogoCanjeDinamico();
         }
 
         function renderizarMatrizNumeros() {
@@ -399,6 +401,68 @@
             const btnActivo = document.getElementById(`tabBtn_${seccionId}`);
             if (btnActivo) btnActivo.classList.add('p-activa');
         };
+
+        window.cambiarPaginaAlbum = function(dir) {
+            paginaActualAlbum += dir;
+            if (paginaActualAlbum < 1) paginaActualAlbum = 1;
+            if (paginaActualAlbum > totalPaginasAlbum) paginaActualAlbum = totalPaginasAlbum;
+            renderizarPaginaAlbum();
+        };
+
+        function renderizarPaginaAlbum() {
+            const grilla = document.getElementById('grillaAlbumFiguritas');
+            const lblPagina = document.getElementById('lblPaginaActual');
+            const lblProgreso = document.getElementById('lblProgresoAlbum');
+            if (!grilla) return;
+
+            let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
+            let pegadasCantidad = misFiguritasColeccionadas.length;
+            if (lblProgreso) lblProgreso.innerText = `Pegadas: ${pegadasCantidad} / ${totalDisponibles}`;
+            if (lblPagina) lblPagina.innerText = `Página ${paginaActualAlbum} / ${totalPaginasAlbum}`;
+
+            grilla.innerHTML = "";
+            let inicio = (paginaActualAlbum - 1) * 6 + 1;
+            let fin = inicio + 5;
+
+            for (let idFig = inicio; idFig <= fin; idFig++) {
+                let tiene = misFiguritasColeccionadas.includes(idFig);
+                let item = document.createElement('div');
+                item.className = `item-figurita ${tiene ? 'desbloqueada' : 'bloqueada'}`;
+                let datos = temasDelRepertorioActivo[String(idFig)];
+                let urlImg = datos ? (datos.url_fig || datos.url_figurita || "") : "";
+
+                if (tiene && urlImg) {
+                    item.innerHTML = `<div class="fig-numero">#${String(idFig).padStart(2,'0')}</div><div class="fig-img-placeholder"><img src="${urlImg}"></div>`;
+                } else {
+                    item.innerHTML = `<div class="fig-numero">#${String(idFig).padStart(2,'0')}</div><div class="fig-img-placeholder" style="color:#334155; font-weight:bold;">#${String(idFig).padStart(2,'0')}</div>`;
+                }
+                grilla.appendChild(item);
+            }
+        }
+
+        function renderizarBandejaTrivias() {
+            const cont = document.getElementById('cajaContenidoTrivia');
+            if (cont) cont.innerHTML = "<p style='color:#94a3b8; text-align:center; padding:15px;'>Las trivias aparecerán cuando suenen los temas en vivo.</p>";
+        }
+
+        function renderizarMisRepetidas() {
+            const cont = document.getElementById('listaMisRepetidas');
+            if (cont) cont.innerHTML = "<p style='color:#94a3b8; text-align:center; padding:15px;'>No tenés figuritas repetidas.</p>";
+        }
+
+        function renderizarCatalogoCanjeDinamico() {
+            const cont = document.getElementById('grillaPremiosCanjeInterna');
+            if (cont) cont.innerHTML = "<p style='color:#94a3b8; text-align:center; padding:15px;'>Catálogo de canjes disponible al completar el álbum.</p>";
+        }
+
+        window.enviarMensajeChat = async function() {
+            const input = document.getElementById('txtMensajeChat');
+            if (!input || !input.value.trim()) return;
+            try {
+                await addDoc(collection(db, "chat_espectadores"), { nombre: infoUsuarioLogueado.nombre || "Participante", mensaje: input.value.trim(), timestamp: new Date() });
+                input.value = "";
+            } catch(e) {}
+        };
     </script>
 
     <style>
@@ -422,19 +486,28 @@
         .grilla-bingo-viva { display: grid; gap: 8px; margin: 10px 0; }
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
+        
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
         .visualizador-fiesta { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a103c 0%, #050510 100%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 10px; overflow: hidden; }
         .bola-boliche { width: 65px; height: 65px; background: radial-gradient(circle at 30% 30%, #fff, #888 40%, #222 80%); border-radius: 50%; box-shadow: 0 0 20px var(--neon-cyan), inset 0 0 8px #fff; margin-bottom: 8px; }
         .numero-gigante-visual { font-size: 2.8rem; font-weight: 900; color: var(--gold); line-height: 1; margin-bottom: 4px; }
         .nombre-tema-visual { font-size: 0.8rem; color: var(--neon-cyan); font-weight: bold; text-transform: uppercase; text-align: center; }
+
+        .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; color: #fff; }
+        .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .item-figurita { background: #0a0e17; border: 2px dashed #2a3f64; border-radius: 10px; padding: 8px; text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
+        .item-figurita.desbloqueada { border: 2px solid var(--neon-cyan); background: #151f32; }
+        .fig-numero { font-size: 0.75rem; color: var(--gold); font-weight: bold; text-align: left; }
+        .fig-img-placeholder { width: 100%; height: 85px; background: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #2a3f64; }
+        .fig-img-placeholder img { width: 100%; height: 100%; object-fit: contain; }
     </style>
 </head>
 <body>
 
 <div class="contenedor-centrado">
     
-    <!-- PANTALLA DE LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
         <input type="text" id="txtNombre" placeholder="Tu Nombre y Apellido">
@@ -450,11 +523,8 @@
         <button type="button" id="btnIngresarShow" class="btn-accion">Ingresar al Show 🎫</button>
     </div>
 
-    <!-- PANTALLA DE ESPERA / PENDIENTE -->
     <div id="cajaNoHabilitado" class="card-caja" style="display:none; text-align:center;">
         <h2 style="color: var(--gold);">⏳ Esperando Habilitación</h2>
-        <p style="font-size: 0.8rem; color: #cbd5e1; margin: 8px 0;">Adjuntá tu comprobante de pago:</p>
-        
         <div style="background:#0a0e17; border: 1px dashed #2a3f64; padding: 10px; border-radius: 8px; margin: 10px 0;">
             <input type="file" id="archivoComprobante" accept="image/*" style="font-size:0.7rem; padding:4px; margin-bottom:6px;">
             <button class="btn-accion" style="background:#2ec4b6; color:#000; padding:8px; font-size:0.75rem;" onclick="subirComprobanteImgBB()">Subir Comprobante 🚀</button>
@@ -466,7 +536,6 @@
     
     <div id="cajaCargando" class="card-caja" style="display:none; text-align:center;"><p>Cargando sala de juego...</p></div>
     
-    <!-- PANTALLA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
         <div class="barra-pozo-vivo">
@@ -487,6 +556,7 @@
             <button id="tabBtn_canje" class="btn-pestana" onclick="cambiarSeccionJuego('canje')">🎁 Canjes</button>
         </div>
 
+        <!-- VISTA BINGO -->
         <div id="vistaBingo">
             <div class="card-caja">
                 <h2>📺 Transmisión y Fiesta</h2>
@@ -510,10 +580,47 @@
             </div>
         </div>
 
-        <div id="vistaAlbum" style="display:none;"><div class="card-caja"><h2>📘 Mi Álbum</h2></div></div>
-        <div id="vistaTrivia" style="display:none;"><div class="card-caja"><h2>❓ Desafíos de Trivia</h2></div></div>
-        <div id="vistaSala" style="display:none;"><div class="card-caja"><h2>💬 Sala de Intercambio</h2></div></div>
-        <div id="vistaCanje" style="display:none;"><div class="card-caja"><h2>🎁 Canjes</h2></div></div>
+        <!-- VISTA ALBUM -->
+        <div id="vistaAlbum" style="display:none;">
+            <div class="card-caja">
+                <h2>📘 Mi Álbum (60 Figuritas)</h2>
+                <p id="lblProgresoAlbum" style="font-size: 0.8rem; color: var(--gold); font-weight: bold; margin-bottom: 10px;">Pegadas: 0 / 60</p>
+                <div class="controles-album">
+                    <button class="btn-pagina" onclick="cambiarPaginaAlbum(-1)">◀ Anterior</button>
+                    <span id="lblPaginaActual" style="font-weight: bold; color: var(--neon-cyan); font-size: 0.85rem;">Página 1 / 10</span>
+                    <button class="btn-pagina" onclick="cambiarPaginaAlbum(1)">Siguiente ▶</button>
+                </div>
+                <div class="grilla-album" id="grillaAlbumFiguritas" style="margin-top:10px;"></div>
+            </div>
+        </div>
+
+        <!-- VISTA TRIVIA -->
+        <div id="vistaTrivia" style="display:none;">
+            <div class="card-caja">
+                <h2>❓ Desafíos de Trivia</h2>
+                <div id="cajaContenidoTrivia"></div>
+            </div>
+        </div>
+
+        <!-- VISTA SALA -->
+        <div id="vistaSala" style="display:none;">
+            <div class="card-caja">
+                <h2>💬 Sala de Intercambio y Chat</h2>
+                <div id="listaMisRepetidas" style="margin-bottom: 10px;"></div>
+                <div style="display:flex; gap:6px;">
+                    <input type="text" id="txtMensajeChat" placeholder="Escribí un mensaje..." style="margin-bottom:0;" onkeypress="if(event.key === 'Enter') enviarMensajeChat()">
+                    <button class="btn-accion" style="width: auto; padding: 0 16px;" onclick="enviarMensajeChat()">Enviar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA CANJES -->
+        <div id="vistaCanje" style="display:none;">
+            <div class="card-caja">
+                <h2>🎁 Catálogo de Canjes</h2>
+                <div id="grillaPremiosCanjeInterna"></div>
+            </div>
+        </div>
 
     </div>
 </div>
