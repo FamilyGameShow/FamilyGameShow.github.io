@@ -7,7 +7,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, collection, addDoc, getDoc, setDoc, getDocs, query, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, collection, addDoc, getDoc, setDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
@@ -27,81 +27,172 @@
         let desuscribirListenerLogin = null;
         let modalidadElegida = "presencial";
 
-        let nroCartonAsignado = null;
-        let misNumeros = [];
-        let numerosSalidos = [];
-        let marcadosManualmente = [];
-        let modoManualActivo = false;
+        // ==========================================
+        // TOUR GUIADO AUTOMÁTICO VISUAL (GLOBO CENTRADO)
+        // ==========================================
+        let pasoActual = 0;
+        const pasosTour = [
+            { titulo: "🎟️ ¡Bienvenido al Show!", mensaje: "Vamos a darte un tour rápido para que sepas cómo jugar y ganar premios. ¡Seguime!", el: "cajaJuegoActivo", func: null },
+            { titulo: "📺 Transmisión en Vivo", mensaje: "Desde acá escuchás todo lo que pasa en el show y ves el bolillero.", el: "iframeStream", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "🎟️ Tu Cartón de Bingo", mensaje: "Acá verás tus números. Si el sistema se pierde, podés usar el modo manual para tachar vos mismo.", el: "grillaNumerosBingo", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "🖨️ Imprimir Cartón", mensaje: "Si preferís jugar con papel y fibron, podés imprimir tu cartón físico en apaisado directamente desde acá.", el: "btnImprimirCartonPapel", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "🎵 Pedí tu tema", mensaje: "Elegí una canción de la lista y ganá un sobre de figuritas extra cuando suene.", el: "selectCanciones", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "📘 Álbum y Figuritas", mensaje: "Acá abrís tus sobres y coleccionás las 60 figuritas del álbum. ¡Si lo completás ganás premios!", el: "tabBtn_album", func: () => cambiarSeccionJuego('album') },
+            { titulo: "❓ Desafíos de Trivia", mensaje: "¡Respondé bien las preguntas musicales cuando suenen los temas para sumar puntos y ganar sobres!", el: "tabBtn_trivia", func: () => cambiarSeccionJuego('trivia') },
+            { titulo: "💬 Sala de Intercambio", mensaje: "¡No te quedes con repetidas! Acá podés ver las de otros participantes y hacer trueques.", el: "tabBtn_sala", func: () => cambiarSeccionJuego('sala') },
+            { titulo: "🎁 Tienda de Canjes", mensaje: "¡Canjeá tus puntos acumulados por tragos, pizzerías, helados y mucho más (completando el álbum)!", el: "tabBtn_canje", func: () => cambiarSeccionJuego('canje') }
+        ];
 
-        let infoUsuarioLogueado = {};
-        let temasDelRepertorioActivo = {}; 
-        let cancionesEnEsperaEscenario = [];
-        let totalTemasEnCola = 0;
-        let tamañoCartonDinamico = 15;
-        let yaCanteLinea = false; let yaCanteBingo = false;
-        let yaReclameBolaLoca = false;
-        let fila1 = [], fila2 = [], fila3 = [];
+        window.iniciarTour = function() {
+            if (!localStorage.getItem('tour_visto')) {
+                mostrarPasoTourActual();
+            }
+        };
 
-        let precioEntradaShow = 3000;
-        let totalPagadosContados = 0;
-        let pozoTotalCalculado = 10000;
+        window.reiniciarTourManual = function() {
+            pasoActual = 0;
+            mostrarPasoTourActual();
+        };
 
-        let paginaActualAlbum = 1;
-        const totalPaginasAlbum = 10;
-        let misFiguritasColeccionadas = []; 
-        let misFiguritasDoradas = []; 
-        let misRepetidas = []; 
-        let sobresPendientesParaAbrir = 0;
-        let puntosTriviaJugador = 0;
-        let triviasRespondidasIds = []; 
-        let urlStreamActualCargada = "";
-        let showEnVivoHabilitado = false;
+        function mostrarPasoTourActual() {
+            document.querySelectorAll('.tour-resaltado').forEach(el => el.classList.remove('tour-resaltado'));
+            const overlay = document.getElementById('tourOverlay');
+            const backdrop = document.getElementById('tourBackdrop');
+            const paso = pasosTour[pasoActual];
+            if (paso.func) paso.func();
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            history.pushState(null, null, location.href);
-            window.onpopstate = function () { history.pushState(null, null, location.href); };
+            document.getElementById('tourTitulo').innerText = paso.titulo;
+            document.getElementById('tourMensaje').innerText = paso.mensaje;
+            
+            backdrop.style.display = "block";
+            overlay.style.display = "block";
 
-            const btnPresencial = document.getElementById('btnModoPresencial');
-            const btnCasa = document.getElementById('btnModoCasa');
-            const btnIngresar = document.getElementById('btnIngresarShow');
+            setTimeout(() => {
+                const elemento = document.getElementById(paso.el);
+                if (elemento) {
+                    elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    elemento.classList.add('tour-resaltado');
+                }
+            }, 300);
+        }
 
-            if (btnPresencial) btnPresencial.onclick = () => seleccionarModalidad('presencial');
-            if (btnCasa) btnCasa.onclick = () => seleccionarModalidad('casa');
-            if (btnIngresar) btnIngresar.onclick = () => intentarIngresarAlShow();
+        window.siguientePasoTour = function() {
+            const pasoAnterior = pasosTour[pasoActual];
+            const elAnterior = document.getElementById(pasoAnterior.el);
+            if (elAnterior) elAnterior.classList.remove('tour-resaltado');
 
-            await cargarConfiguracionInicialShow();
-            verificarSesionOLinkMagico();
-        });
+            pasoActual++;
+            if (pasoActual >= pasosTour.length) {
+                document.getElementById('tourOverlay').style.display = "none";
+                document.getElementById('tourBackdrop').style.display = "none";
+                localStorage.setItem('tour_visto', 'true');
+            } else {
+                mostrarPasoTourActual();
+            }
+        };
 
         window.seleccionarModalidad = function(tipo) {
             modalidadElegida = tipo;
             const btnPresencial = document.getElementById('btnModoPresencial');
             const btnCasa = document.getElementById('btnModoCasa');
             if(tipo === 'presencial') {
-                if(btnPresencial) {
-                    btnPresencial.style.background = "rgba(255,209,102,0.2)";
-                    btnPresencial.style.borderColor = "var(--gold)";
-                    btnPresencial.style.color = "var(--gold)";
-                }
-                if(btnCasa) {
-                    btnCasa.style.background = "#0a0e17";
-                    btnCasa.style.borderColor = "#2a3f64";
-                    btnCasa.style.color = "#94a3b8";
-                }
+                btnPresencial.style.background = "rgba(255,209,102,0.2)";
+                btnPresencial.style.borderColor = "var(--gold)";
+                btnPresencial.style.color = "var(--gold)";
+                btnCasa.style.background = "#0a0e17";
+                btnCasa.style.borderColor = "#2a3f64";
+                btnCasa.style.color = "#94a3b8";
             } else {
-                if(btnCasa) {
-                    btnCasa.style.background = "rgba(0,245,212,0.2)";
-                    btnCasa.style.borderColor = "var(--neon-cyan)";
-                    btnCasa.style.color = "var(--neon-cyan)";
-                }
-                if(btnPresencial) {
-                    btnPresencial.style.background = "#0a0e17";
-                    btnPresencial.style.borderColor = "#2a3f64";
-                    btnPresencial.style.color = "#94a3b8";
-                }
+                btnCasa.style.background = "rgba(0,245,212,0.2)";
+                btnCasa.style.borderColor = "var(--neon-cyan)";
+                btnCasa.style.color = "var(--neon-cyan)";
+                btnPresencial.style.background = "#0a0e17";
+                btnPresencial.style.borderColor = "#2a3f64";
+                btnPresencial.style.color = "#94a3b8";
             }
         };
 
+        // ==========================================
+        // CONTROL DE STREAMING Y YOUTUBE
+        // ==========================================
+        let modoTransmisionActual = "automatico";
+        let loopInterval = null;
+        let retornoTimeout = null;
+        let ultimaCancionTocadaProcesada = null;
+        let urlStreamActualCargada = "";
+        let showEnVivoHabilitado = false;
+
+        function enviarComandoYouTube(func, args = []) {
+            const iframe = document.getElementById('iframeStream');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage(JSON.stringify({
+                    event: 'command',
+                    func: func,
+                    args: Array.isArray(args) ? args : [args]
+                }), '*');
+            }
+        }
+
+        function iniciarLoopEsperaInfinito() {
+            if (retornoTimeout) clearTimeout(retornoTimeout);
+            if (loopInterval) clearInterval(loopInterval);
+            enviarComandoYouTube('seekTo', [0, true]);
+            enviarComandoYouTube('playVideo', []);
+            loopInterval = setInterval(() => {
+                enviarComandoYouTube('seekTo', [0, true]);
+                enviarComandoYouTube('playVideo', []);
+            }, 14000);
+        }
+
+        function reproducirClipCompilado(numeroCancion) {
+            const num = Number(numeroCancion);
+            if (!num || num < 1 || num > 60) return;
+            if (loopInterval) clearInterval(loopInterval);
+            if (retornoTimeout) clearTimeout(retornoTimeout);
+            const segundoInicio = 20 + (num - 1) * 20;
+            enviarComandoYouTube('seekTo', [segundoInicio, true]);
+            enviarComandoYouTube('playVideo', []);
+            retornoTimeout = setTimeout(() => { iniciarLoopEsperaInfinito(); }, 20000);
+        }
+
+        window.reproducirDespedidaFinal = function() {
+            if (loopInterval) clearInterval(loopInterval);
+            if (retornoTimeout) clearTimeout(retornoTimeout);
+            enviarComandoYouTube('seekTo', [1220, true]); 
+            enviarComandoYouTube('playVideo', []);
+        };
+
+        function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
+            const iframe = document.getElementById('iframeStream');
+            if (!iframe) return;
+            if (modoTransmisionActual === "vivo") {
+                if (loopInterval) clearInterval(loopInterval);
+                if (retornoTimeout) clearTimeout(retornoTimeout);
+                if (linkVivo && linkVivo !== urlStreamActualCargada) {
+                    let videoId = linkVivo;
+                    if (linkVivo.includes("watch?v=")) videoId = linkVivo.split("watch?v=")[1].split("&")[0];
+                    else if (linkVivo.includes("youtu.be/")) videoId = linkVivo.split("youtu.be/")[1].split("?")[0];
+                    iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`;
+                    urlStreamActualCargada = linkVivo;
+                }
+            } else {
+                const num = Number(ultimaCancionCantada);
+                if (num === 999) {
+                    reproducirDespedidaFinal();
+                } else if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
+                    if (ultimaCancionTocadaProcesada !== num) {
+                        ultimaCancionTocadaProcesada = num;
+                        reproducirClipCompilado(num);
+                    }
+                } else {
+                    if (!loopInterval) { iniciarLoopEsperaInfinito(); }
+                }
+            }
+        }
+
+        // ==========================================
+        // LÓGICA DE INGRESO Y SUBIDA A IMGBB
+        // ==========================================
         window.intentarIngresarAlShow = async function() {
             const nombre = document.getElementById('txtNombre').value.trim();
             const dniOriginal = document.getElementById('txtDni').value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -221,6 +312,44 @@
             document.getElementById('cajaLogin').style.display = "block";
         };
 
+        // ==========================================
+        // VARIABLES Y LÓGICA DEL JUEGO
+        // ==========================================
+        let nroCartonAsignado = null;
+        let misNumeros = [];
+        let numerosSalidos = [];
+        let marcadosManualmente = [];
+        let modoManualActivo = false;
+
+        let infoUsuarioLogueado = {};
+        let temasDelRepertorioActivo = {}; 
+        let cancionesEnEsperaEscenario = [];
+        let totalTemasEnCola = 0;
+        let tamañoCartonDinamico = 9;
+        let yaCanteLinea = false; let yaCanteBingo = false;
+        let yaReclameBolaLoca = false;
+        let fila1 = [], fila2 = [], fila3 = [];
+
+        let precioEntradaShow = 3000;
+        let totalPagadosContados = 0;
+        let pozoTotalCalculado = 10000;
+
+        let paginaActualAlbum = 1;
+        const totalPaginasAlbum = 10;
+        let misFiguritasColeccionadas = []; 
+        let misFiguritasDoradas = []; 
+        let misRepetidas = []; 
+        let sobresPendientesParaAbrir = 0;
+        let puntosTriviaJugador = 0;
+        let triviasRespondidasIds = []; 
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            history.pushState(null, null, location.href);
+            window.onpopstate = function () { history.pushState(null, null, location.href); };
+            await cargarConfiguracionInicialShow();
+            verificarSesionOLinkMagico();
+        });
+
         async function verificarSesionOLinkMagico() {
             const urlParams = new URLSearchParams(window.location.search);
             const tokenPase = urlParams.get('pase') || urlParams.get('dni') || urlParams.get('dni_pago');
@@ -241,6 +370,7 @@
                 if (snapEstado.exists()) {
                     const datosEstado = snapEstado.data();
                     showEnVivoHabilitado = (datosEstado.show_iniciado === true);
+                    modoTransmisionActual = datosEstado.modo_transmision || "automatico";
                     if (datosEstado.repertorio_activo) idRepertorioAUsar = datosEstado.repertorio_activo;
                     if (datosEstado.link_stream) linkStreamEncontrado = datosEstado.link_stream;
                     if (datosEstado.precio_carton) precioEntradaShow = Number(datosEstado.precio_carton);
@@ -256,6 +386,8 @@
                     });
                 }
 
+                gestionarReproductorSegunModo(linkStreamEncontrado, null);
+
                 const repSnap = await getDoc(doc(db, "repertorios", idRepertorioAUsar));
                 if (repSnap.exists()) {
                     temasDelRepertorioActivo = repSnap.data().canciones || {};
@@ -264,70 +396,12 @@
                     if (!listaReps.empty) temasDelRepertorioActivo = listaReps.docs[0].data().canciones || {};
                 }
                 
-                gestionarReproductorSegunModo(linkStreamEncontrado, snapEstado.exists() ? snapEstado.data().ultima_cancion_tocada : 0);
                 aplicarBloqueoPreShowEstricto();
                 actualizarSelectorCancionesDinamico();
                 renderizarBandejaTrivias();
                 renderizarCatalogoCanjeDinamico();
                 calcularYActualizarPozo();
             } catch (e) { console.error(e); }
-        }
-
-        function extraerIdYouTube(url) {
-            if (!url) return "";
-            if (url.includes("watch?v=")) return url.split("watch?v=")[1].split("&")[0];
-            if (url.includes("youtu.be/")) return url.split("youtu.be/")[1].split("?")[0];
-            return url;
-        }
-
-        window.reproducirDespedidaFinal = function() {
-            const iframe = document.getElementById('iframeStream');
-            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
-            if (visualizadorGigante) visualizadorGigante.style.display = "none";
-            if (iframe) iframe.src = "https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1"; 
-        };
-
-        function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
-            const iframe = document.getElementById('iframeStream');
-            const visualizadorGigante = document.getElementById('visualizadorBolaBoliche');
-            const numeroGiganteVisual = document.getElementById('lblNumeroGiganteVisual');
-            const nombreTemaVisual = document.getElementById('lblNombreTemaVisual');
-            
-            if (!iframe) return;
-            
-            const num = Number(ultimaCancionCantada);
-            if (num === 999) {
-                reproducirDespedidaFinal();
-            } else if (num && num >= 1 && showEnVivoHabilitado) {
-                let datosTema = temasDelRepertorioActivo ? temasDelRepertorioActivo[String(num)] : null;
-                if (datosTema) {
-                    let linkAudio = datosTema.url_youtube || "";
-                    let nombrePuro = String(datosTema.nombre || "").replace(/^\d+[\s-:=]*/, '');
-
-                    if (linkAudio && linkAudio.includes("http")) {
-                        let videoId = extraerIdYouTube(linkAudio);
-                        if (videoId) {
-                            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                            if (visualizadorGigante) visualizadorGigante.style.display = "flex";
-                            if (numeroGiganteVisual) numeroGiganteVisual.innerText = `#${String(num).padStart(2,'0')}`;
-                            if (nombreTemaVisual) nombreTemaVisual.innerText = nombrePuro.toUpperCase();
-                        }
-                    } else {
-                        if (visualizadorGigante) visualizadorGigante.style.display = "none";
-                        if (linkVivo) {
-                            let videoId = extraerIdYouTube(linkVivo);
-                            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                        }
-                    }
-                }
-            } else {
-                if (visualizadorGigante) visualizadorGigante.style.display = "none";
-                if (linkVivo && linkVivo !== urlStreamActualCargada) {
-                    let videoId = extraerIdYouTube(linkVivo);
-                    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
-                    urlStreamActualCargada = linkVivo;
-                }
-            }
         }
 
         async function calcularYActualizarPozo() {
@@ -342,6 +416,7 @@
                 let recaudacionReal = totalPagadosContados * precioEntradaShow;
                 pozoTotalCalculado = Math.max(basePozo, recaudacionReal);
                 
+                // Mostramos el pozo total visual de forma completa arriba (arranca en 10.000 y sube)
                 const lblPozo = document.getElementById('lblMontoPozoBingo');
                 if (lblPozo) lblPozo.innerText = `$${pozoTotalCalculado.toLocaleString('es-AR')}`;
             } catch(e) {}
@@ -352,6 +427,7 @@
                 if (docSnap.exists()) {
                     const estado = docSnap.data();
                     showEnVivoHabilitado = (estado.show_iniciado === true);
+                    modoTransmisionActual = estado.modo_transmision || "automatico";
                     numerosSalidos = (estado.lista_numeros_salidos || []).map(String);
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
                     
@@ -508,10 +584,8 @@
                 alert("❌ Incorrecto. Perdiste -20 Puntos. ¡Atento a la próxima!");
             }
 
-            const lblPuntos1 = document.getElementById('lblPuntosJugador');
-            const lblPuntos2 = document.getElementById('lblMisPuntosCanjeVista');
-            if (lblPuntos1) lblPuntos1.innerText = `${puntosTriviaJugador} pts`;
-            if (lblPuntos2) lblPuntos2.innerText = `${puntosTriviaJugador} pts`;
+            document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
+            document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
 
             try {
                 await updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), {
@@ -527,10 +601,12 @@
 
             let codigosDisponibles = Object.keys(temasDelRepertorioActivo).length > 0 ? Object.keys(temasDelRepertorioActivo).map(String) : [];
             if (codigosDisponibles.length === 0) {
-                for(let i=1; i<=60; i++) codigosDisponibles.push(String(i));
+                tamañoCartonDinamico = 9;
+                for(let i=1; i<=9; i++) codigosDisponibles.push(String(i));
+                temasDelRepertorioActivo = {"1":{"nombre":"T1"},"2":{"nombre":"T2"},"3":{"nombre":"T3"},"4":{"nombre":"T4"},"5":{"nombre":"T5"},"6":{"nombre":"T6"},"7":{"nombre":"T7"},"8":{"nombre":"T8"},"9":{"nombre":"T9"}};
+            } else {
+                tamañoCartonDinamico = (codigosDisponibles.length < 30) ? 9 : 15;
             }
-            
-            tamañoCartonDinamico = 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
@@ -577,35 +653,30 @@
             yaReclameBolaLoca = data.bola_loca_reclamada || false;
             if(data.modalidad) modalidadElegida = data.modalidad;
 
-            tamañoCartonDinamico = misNumeros.length; 
-            let tamFila = Math.floor(misNumeros.length / 3);
-            if (tamFila < 1) tamFila = 1;
-            fila1 = misNumeros.slice(0, tamFila); 
-            fila2 = misNumeros.slice(tamFila, tamFila * 2); 
-            fila3 = misNumeros.slice(tamFila * 2);
+            tamañoCartonDinamico = misNumeros.length; let tamFila = Math.floor(misNumeros.length / 3);
+            fila1 = misNumeros.slice(0, tamFila); fila2 = misNumeros.slice(tamFila, tamFila * 2); fila3 = misNumeros.slice(tamFila * 2);
             
             document.getElementById('cajaCargando').style.display = "none";
             document.getElementById('cajaNoHabilitado').style.display = "none";
             document.getElementById('cajaLogin').style.display = "none";
             document.getElementById('cajaJuegoActivo').style.display = "block";
             
-            const lblNro = document.getElementById('lblNroCartonBadge');
-            const lblPts1 = document.getElementById('lblPuntosJugador');
-            const lblNom = document.getElementById('lblNombreUsuarioCanje');
-            const lblPts2 = document.getElementById('lblMisPuntosCanjeVista');
-
-            if (lblNro) lblNro.innerText = String(nroCartonAsignado).padStart(3, '0');
-            if (lblPts1) lblPts1.innerText = `${puntosTriviaJugador} pts`;
-            if (lblNom) lblNom.innerText = infoUsuarioLogueado.nombre;
-            if (lblPts2) lblPts2.innerText = `${puntosTriviaJugador} pts`;
+            document.getElementById('lblNroCartonBadge').innerText = String(nroCartonAsignado).padStart(3, '0');
+            document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
+            document.getElementById('lblNombreUsuarioCanje').innerText = infoUsuarioLogueado.nombre;
+            document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
             
             renderizarMatrizNumerosYVerificarPremios({lista_numeros_salidos: numerosSalidos});
             renderizarPaginaAlbum();
             renderizarBandejaTrivias();
             renderizarCatalogoCanjeDinamico();
             aplicarBloqueoPreShowEstricto();
+            iniciarEscuchaChat();
             renderizarMisRepetidas();
             iniciarEscuchaSalaCambios();
+            iniciarLoopEsperaInfinito();
+            
+            iniciarTour();
 
             onSnapshot(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), (docSnap) => {
                 if(docSnap.exists()) {
@@ -617,10 +688,8 @@
                     puntosTriviaJugador = d.puntos || 0;
                     triviasRespondidasIds = (d.trivias_respondidas || []).map(String);
                     yaReclameBolaLoca = d.bola_loca_reclamada || false;
-                    
-                    if (lblPts1) lblPts1.innerText = `${puntosTriviaJugador} pts`;
-                    if (lblPts2) lblPts2.innerText = `${puntosTriviaJugador} pts`;
-                    
+                    document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
+                    document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
                     renderizarPaginaAlbum(); renderizarMisRepetidas(); renderizarBandejaTrivias(); renderizarCatalogoCanjeDinamico(); actualizarIndicadorSobres();
                 }
             });
@@ -642,6 +711,9 @@
             renderizarMatrizNumerosYVerificarPremios({lista_numeros_salidos: numerosSalidos});
         };
 
+        // ==========================================
+        // 🖨️ IMPRESIÓN PROLIJA EN APAISADO (SOLO NÚMEROS)
+        // ==========================================
         window.imprimirCartonPapel = function() {
             let nombreUser = infoUsuarioLogueado.nombre || "Participante";
             let nroCartonTxt = String(nroCartonAsignado || "000").padStart(3, '0');
@@ -656,12 +728,12 @@
                     <style>
                         @page { size: A4 landscape; margin: 15mm; }
                         * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-                        body { background: #fff; color: #000; text-align: center; padding: 10mm; margin: 0; }
+                        body { background: #fff; color: #000; text-align: center; padding: 10px; margin: 0; }
                         .tarjeta-impresion { border: 3px solid #000; border-radius: 12px; padding: 25px; max-width: 650px; margin: 0 auto; background: #fff; }
                         h1 { font-size: 1.6rem; text-transform: uppercase; margin: 0 0 5px 0; }
                         .sub { font-size: 0.9rem; color: #555; margin-bottom: 15px; }
                         .info-box { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; }
-                        .grilla-impresion { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+                        .grilla-impresion { display: grid; grid-template-columns: repeat(${tamañoCartonDinamico === 9 ? 3 : 5}, 1fr); gap: 15px; }
                         .casillero-impresion { border: 3px solid #000; border-radius: 10px; aspect-ratio: 1.2; display: flex; align-items: center; justify-content: center; background: #fdfdfd; }
                         .nro { font-size: 2.5rem; font-weight: 900; color: #000; }
                         .footer { margin-top: 25px; font-size: 0.85rem; color: #333; border-top: 1px dashed #000; padding-top: 10px; font-weight: bold; }
@@ -703,9 +775,7 @@
         };
 
         function renderizarMatrizNumerosYVerificarPremios(estadoGlobal) {
-            const contenedor = document.getElementById('grillaNumerosBingo'); 
-            if (!contenedor) return;
-            contenedor.innerHTML = "";
+            const contenedor = document.getElementById('grillaNumerosBingo'); contenedor.innerHTML = "";
             contenedor.style.gridTemplateColumns = tamañoCartonDinamico === 9 ? "repeat(3, 1fr)" : "repeat(5, 1fr)";
             let aciertosReales = 0, aciertosF1 = 0, aciertosF2 = 0, aciertosF3 = 0;
             
@@ -736,6 +806,7 @@
                 contenedor.appendChild(boton);
             });
             
+            // 🌟 1. BOLA LOCA COMO PREMIO INSTANTÁNEO (INDEPENDIENTE)
             let ultimoNumeroCantado = parseInt(String(estadoGlobal.ultima_cancion_tocada || "0").replace(/\D/g, ''), 10);
             let numeroClaveBolaLoca = parseInt(String(estadoGlobal.numero_clave_noche || "-999").replace(/\D/g, ''), 10);
             
@@ -754,9 +825,10 @@
 
                 let premioTexto = modalidadElegida === 'presencial' ? "¡Ganaste un trago en la barra 🍹!" : "¡Ganaste un pase libre para el próximo show 🏠!";
                 alert(`🔥 ¡BOLA LOCA ENCONTRADA! 🔥\nTu cartón tenía el número #${String(numeroClaveBolaLoca).padStart(2,'0')}.\n${premioTexto}\nAvisale al personal del show.`);
-                return;
+                return; // Cortamos para que no se mezcle con línea ni bingo
             }
 
+            // Si ya cantó bingo, congelamos las líneas
             let bingoYaCantadoGlobal = (estadoGlobal.bingo_ganado === true || yaCanteBingo);
 
             let totalLineasHabilitadasMax = Number(estadoGlobal.lineas_premiadas_max || 1);
@@ -775,7 +847,7 @@
                     
                     let porcentajePremio = (lineasActualesContadas === 1) ? 0.20 : 0.15;
                     let montoPremioBruto = pozoTotalCalculado * porcentajePremio;
-                    let montoPremioRedondeado = Math.floor(montoPremioBruto);
+                    let montoPremioRedondeado = Math.floor(montoPremioBruto); // Redondeado para abajo sin decimales
 
                     try { 
                         addDoc(collection(db, "notificaciones_escenario"), { 
@@ -784,11 +856,8 @@
                         }); 
                     } catch(e){}
 
-                    const lblBloqueo = document.getElementById('lblMensajeBloqueo');
-                    if (lblBloqueo) {
-                        lblBloqueo.innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
-                        lblBloqueo.style.display = "block"; 
-                    }
+                    document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
+                    document.getElementById('lblMensajeBloqueo').style.display = "block"; 
                     alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste ${lineasActualesContadas} línea(s) y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
                 }
             }
@@ -802,8 +871,7 @@
                         nro_carton: nroCartonAsignado, timestamp: new Date() 
                     }); 
                 } catch(e){}
-                const mBingo = document.getElementById('modalBingoGanado');
-                if (mBingo) mBingo.style.display = "flex";
+                document.getElementById('modalBingoGanado').style.display = "flex";
             }
         }
 
@@ -858,6 +926,9 @@
             } else { badge.style.display = "none"; botonAbrir.style.display = "none"; }
         }
 
+        // ==========================================
+        // 🌟 APERTURA DE SOBRES (DROP REAL 3% PARA DORADAS)
+        // ==========================================
         window.abrirSobreAcumulado = async function() {
             if (!showEnVivoHabilitado) { alert("Los sobres se abren durante el show en vivo."); return; }
             if (sobresPendientesParaAbrir <= 0) return;
@@ -871,7 +942,7 @@
                     idAleatorio = Math.floor(Math.random() * 6) + 55;
                     if (idAleatorio > totalDisponiblesRepertorio) idAleatorio = totalDisponiblesRepertorio;
                 } else {
-                    idAleatorio = Math.floor(Math.random() * 54) + 1;
+                    idAleatorio = Math.floor(Math.random() * 54) + 1; // Comunes (1 a 54)
                 }
 
                 let esDorada = (idAleatorio >= 55);
@@ -914,35 +985,29 @@
 
             const contenedorSobre = document.getElementById('contenidoSobreAbierto');
             const cajaPremioEspecial = document.getElementById('avisoPremioDoradaModal');
-            if(contenedorSobre) contenedorSobre.innerHTML = "";
+            contenedorSobre.innerHTML = "";
             
-            if (cajaPremioEspecial) {
-                if (albumLleno) {
-                    cajaPremioEspecial.style.display = "block";
-                    cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.9rem;">👑 ¡ÁLBUM COMPLETADO! Ganaste tu Pase Libre al Próximo Show 🎉</p>`;
-                    dispararEspamentoDorado();
-                } else if (ganoDoradaNueva) { 
-                    cajaPremioEspecial.style.display = "block"; 
-                    cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA DORADA DE LA ÚLTIMA PÁGINA! +3 Sobres Extra 🎁</p>`;
-                    dispararEspamentoDorado(); 
-                } else { 
-                    cajaPremioEspecial.style.display = "none"; 
-                }
+            if (albumLleno) {
+                cajaPremioEspecial.style.display = "block";
+                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.9rem;">👑 ¡ÁLBUM COMPLETADO! Ganaste tu Pase Libre al Próximo Show 🎉</p>`;
+                dispararEspamentoDorado();
+            } else if (ganoDoradaNueva) { 
+                cajaPremioEspecial.style.display = "block"; 
+                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA DORADA DE LA ÚLTIMA PÁGINA! +3 Sobres Extra 🎁</p>`;
+                dispararEspamentoDorado(); 
+            } else { 
+                cajaPremioEspecial.style.display = "none"; 
             }
 
-            if (contenedorSobre) {
-                sobreAbierto.forEach(fig => {
-                    let tarjeta = document.createElement('div'); tarjeta.className = `fig-premio ${fig.tipo}`;
-                    let etiquetaTipo = '✨ ¡PEGADA!', colorTipo = 'var(--neon-cyan)', icono = '🎫';
-                    if (fig.tipo === 'gold') { etiquetaTipo = '👑 ¡ORO!'; colorTipo = 'var(--gold)'; icono = '🌟'; }
-                    else if (fig.tipo === 'repetida') { etiquetaTipo = '🔄 ¡REPETIDA!'; colorTipo = '#94a3b8'; }
-                    tarjeta.innerHTML = `<div style="font-size:0.7rem; color:#94a3b8;">#${String(fig.id).padStart(2,'0')}</div><div style="font-size:1.5rem; margin:5px 0;">${icono}</div><div style="font-size:0.75rem; font-weight:bold; color:${colorTipo}">${etiquetaTipo}</div>`;
-                    contenedorSobre.appendChild(tarjeta);
-                });
-            }
-            
-            const modalSobre = document.getElementById('modalSobreSorpresa');
-            if (modalSobre) modalSobre.style.display = "flex";
+            sobreAbierto.forEach(fig => {
+                let tarjeta = document.createElement('div'); tarjeta.className = `fig-premio ${fig.tipo}`;
+                let etiquetaTipo = '✨ ¡PEGADA!', colorTipo = 'var(--neon-cyan)', icono = '🎫';
+                if (fig.tipo === 'gold') { etiquetaTipo = '👑 ¡ORO!'; colorTipo = 'var(--gold)'; icono = '🌟'; }
+                else if (fig.tipo === 'repetida') { etiquetaTipo = '🔄 ¡REPETIDA!'; colorTipo = '#94a3b8'; }
+                tarjeta.innerHTML = `<div style="font-size:0.7rem; color:#94a3b8;">#${String(fig.id).padStart(2,'0')}</div><div style="font-size:1.5rem; margin:5px 0;">${icono}</div><div style="font-size:0.75rem; font-weight:bold; color:${colorTipo}">${etiquetaTipo}</div>`;
+                contenedorSobre.appendChild(tarjeta);
+            });
+            document.getElementById('modalSobreSorpresa').style.display = "flex";
             renderizarPaginaAlbum(); renderizarMisRepetidas(); actualizarIndicadorSobres();
         };
 
@@ -958,21 +1023,18 @@
         function renderizarPaginaAlbum() {
             const grilla = document.getElementById('grillaAlbumFiguritas'); const lblPagina = document.getElementById('lblPaginaActual');
             const lblProgreso = document.getElementById('lblProgresoAlbum'); const bloquePuntosBanner = document.getElementById('bloqueBotonCanje');
-            const lblSubCanjeTag = document.getElementById('lblSubCanjeTag');
             if(!grilla) return;
-            
             let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
             let pegadasCantidad = misFiguritasColeccionadas.length; let faltantes = Math.max(0, totalDisponibles - pegadasCantidad);
             if (lblProgreso) lblProgreso.innerText = `Pegadas: ${pegadasCantidad} / ${totalDisponibles} (Faltan ${faltantes})`;
-            if (bloquePuntosBanner && lblSubCanjeTag) {
+            if (bloquePuntosBanner) {
                 if (pegadasCantidad >= totalDisponibles && totalDisponibles > 0) {
-                    bloquePuntosBanner.classList.add('album-completo-titilar'); lblSubCanjeTag.innerText = "👑 ¡ÁLBUM LLENO!";
+                    bloquePuntosBanner.classList.add('album-completo-titilar'); document.getElementById('lblSubCanjeTag').innerText = "👑 ¡ÁLBUM LLENO!";
                 } else {
-                    bloquePuntosBanner.classList.remove('album-completo-titilar'); lblSubCanjeTag.innerText = "🎁 Ver Premios";
+                    bloquePuntosBanner.classList.remove('album-completo-titilar'); document.getElementById('lblSubCanjeTag').innerText = "🎁 Ver Premios";
                 }
             }
-            grilla.innerHTML = ""; 
-            if (lblPagina) lblPagina.innerText = `Página ${paginaActualAlbum} / ${totalPaginasAlbum}`;
+            grilla.innerHTML = ""; lblPagina.innerText = `Página ${paginaActualAlbum} / ${totalPaginasAlbum}`;
             let inicio = (paginaActualAlbum - 1) * 6 + 1, fin = inicio + 5;
 
             for(let idFigurita = inicio; idFigurita <= fin; idFigurita++) {
@@ -989,8 +1051,7 @@
                     grilla.appendChild(item); continue;
                 }
 
-                let urlImagen = datosCancionVinculada.url_fig || datosCancionVinculada.url_figurita || "";
-
+                let urlImagen = (esDorada && datosCancionVinculada.url_fig_gold) ? datosCancionVinculada.url_fig_gold : (datosCancionVinculada.url_fig || "");
                 let nombreTemaLimpio = String(datosCancionVinculada.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
                 if (tieneFigurita) {
@@ -1006,24 +1067,17 @@
         }
 
         window.abrirModalZoomFigurita = function(id, nombre, urlImg, esDorada) {
-            const tit = document.getElementById('tituloZoomFigurita');
+            document.getElementById('tituloZoomFigurita').innerText = `#${String(id).padStart(2,'0')} - ${nombre}`;
             const imgZoom = document.getElementById('imgZoomFigurita');
+            if (urlImg) { imgZoom.src = urlImg; imgZoom.style.display = "block"; } else { imgZoom.style.display = "none"; }
             const badgeZoom = document.getElementById('badgeZoomFigurita');
-            const modal = document.getElementById('modalZoomFigurita');
-
-            if (tit) tit.innerText = `#${String(id).padStart(2,'0')} - ${nombre}`;
-            if (imgZoom) {
-                if (urlImg) { imgZoom.src = urlImg; imgZoom.style.display = "block"; } else { imgZoom.style.display = "none"; }
-            }
-            if (badgeZoom) {
-                if (esDorada) { badgeZoom.style.display = "inline-block"; badgeZoom.innerText = "👑 VERSIÓN ULTRA-RARA DE ORO"; } else { badgeZoom.style.display = "none"; }
-            }
-            if (modal) modal.style.display = "flex";
+            if (esDorada) { badgeZoom.style.display = "inline-block"; badgeZoom.innerText = "👑 VERSIÓN ULTRA-RARA DE ORO"; } else { badgeZoom.style.display = "none"; }
+            document.getElementById('modalZoomFigurita').style.display = "flex";
         };
 
-        window.cerrarModalZoom = function() { const m = document.getElementById('modalZoomFigurita'); if(m) m.style.display = "none"; };
-        window.cerrarModalSobre = function() { const m = document.getElementById('modalSobreSorpresa'); if(m) m.style.display = "none"; };
-        window.cerrarModalBingo = function() { const m = document.getElementById('modalBingoGanado'); if(m) m.style.display = "none"; };
+        window.cerrarModalZoom = function() { document.getElementById('modalZoomFigurita').style.display = "none"; };
+        window.cerrarModalSobre = function() { document.getElementById('modalSobreSorpresa').style.display = "none"; };
+        window.cerrarModalBingo = function() { document.getElementById('modalBingoGanado').style.display = "none"; };
 
         function renderizarMisRepetidas() {
             const contenedor = document.getElementById('listaMisRepetidas'); if(!contenedor) return;
@@ -1040,6 +1094,7 @@
             });
         }
 
+        // 🌟 LÓGICA DE CANJE DE DORADA REPETIDA POR 3 FIGURITAS NORMALES FALTANTES
         window.canjearDoradaRepetidaPorTres = async function(idFigurita) {
             if (!confirm(`¿Querés quemar tu figurita dorada repetida #${idFigurita} a cambio de 3 figuritas normales nuevas para tu álbum?`)) return;
             let index = misRepetidas.indexOf(Number(idFigurita));
@@ -1050,7 +1105,7 @@
                 let ganadas = 0;
                 let intentitos = 0;
                 while(ganadas < 3 && intentitos < 50) {
-                    let randId = Math.floor(Math.random() * 54) + 1;
+                    let randId = Math.floor(Math.random() * 54) + 1; // De la 1 a la 54 (normales)
                     if (!misFiguritasColeccionadas.includes(randId)) {
                         misFiguritasColeccionadas.push(randId);
                         ganadas++;
@@ -1102,18 +1157,16 @@
             const modalGrilla = document.getElementById('modalGrillaIntercambio');
             const contenidoGrilla = document.getElementById('grillaFaltantesParticipante');
             const btnTrade = document.getElementById('btnAccionTruequeAutomatico');
-            const titModal = document.getElementById('tituloModalIntercambio');
-            
-            if(titModal) titModal.innerText = `Trueque con ${nombreOtro}`;
-            if(contenidoGrilla) contenidoGrilla.innerHTML = "<p style='color:#94a3b8; font-size:0.8rem; text-align:center;'>Consultando inventario...</p>";
-            if(modalGrilla) modalGrilla.style.display = "flex";
+            document.getElementById('tituloModalIntercambio').innerText = `Trueque con ${nombreOtro}`;
+            contenidoGrilla.innerHTML = "<p style='color:#94a3b8; font-size:0.8rem; text-align:center;'>Consultando inventario...</p>";
+            modalGrilla.style.display = "flex";
 
             const otroSnap = await getDoc(doc(db, "cartones_vendidos", dniOtro));
-            if(!otroSnap.exists()) { alert("El participante ya no está conectado."); if(modalGrilla) modalGrilla.style.display = "none"; return; }
+            if(!otroSnap.exists()) { alert("El participante ya no está conectado."); modalGrilla.style.display = "none"; return; }
             const otrosDatos = otroSnap.data();
             const susPegadas = (otrosDatos.album_pegadas || []).map(Number);
             const susRepetidas = (otrosDatos.repetidas || []).map(Number);
-            if(contenidoGrilla) contenidoGrilla.innerHTML = "";
+            contenidoGrilla.innerHTML = "";
 
             let meSirven = [...new Set(susRepetidas.filter(id => !misFiguritasColeccionadas.includes(id)))];
             let leSirven = [...new Set(misRepetidas.filter(id => !susPegadas.includes(id)))];
@@ -1127,22 +1180,18 @@
                 if (esFaltanteMioQueElTiene) { claseExtra = 'te-falta'; textoExtra += '<br>✨ Te da'; }
                 else if (esMioRepetidoQueElTiene) { claseExtra = 'le-sirve'; textoExtra += '<br>🔄 Le das'; }
                 casillero.className = `casillero-intercambio-mini ${claseExtra}`;
-                casillero.innerHTML = textoExtra; 
-                if(contenidoGrilla) contenidoGrilla.appendChild(casillero);
+                casillero.innerHTML = textoExtra; contenidoGrilla.appendChild(casillero);
             }
 
-            if (btnTrade) {
-                if (meSirven.length > 0 && leSirven.length > 0) {
-                    let figQueDoy = leSirven[0], figQueRecibo = meSirven[0];
-                    btnTrade.style.display = "block"; btnTrade.innerText = `🤝 ¡Cambiar #${figQueDoy} por #${figQueRecibo}!`;
-                    btnTrade.onclick = async function() {
-                        btnTrade.disabled = true; btnTrade.innerText = "Procesando...";
-                        await ejecutarTradeRealEnFirebase(dniOtro, nombreOtro, figQueDoy, figQueRecibo);
-                        if(modalGrilla) modalGrilla.style.display = "none"; 
-                        btnTrade.disabled = false;
-                    };
-                } else { btnTrade.style.display = "none"; }
-            }
+            if (meSirven.length > 0 && leSirven.length > 0) {
+                let figQueDoy = leSirven[0], figQueRecibo = meSirven[0];
+                btnTrade.style.display = "block"; btnTrade.innerText = `🤝 ¡Cambiar #${figQueDoy} por #${figQueRecibo}!`;
+                btnTrade.onclick = async function() {
+                    btnTrade.disabled = true; btnTrade.innerText = "Procesando...";
+                    await ejecutarTradeRealEnFirebase(dniOtro, nombreOtro, figQueDoy, figQueRecibo);
+                    modalGrilla.style.display = "none"; btnTrade.disabled = false;
+                };
+            } else { btnTrade.style.display = "none"; }
         };
 
         async function ejecutarTradeRealEnFirebase(dniOtro, nombreOtro, figQueDoy, figQueRecibo) {
@@ -1168,14 +1217,29 @@
             } catch(e) { alert("Error al procesar el intercambio."); }
         }
 
-        window.cerrarModalGrillaIntercambio = function() { const m = document.getElementById('modalGrillaIntercambio'); if(m) m.style.display = "none"; };
+        window.cerrarModalGrillaIntercambio = function() { document.getElementById('modalGrillaIntercambio').style.display = "none"; };
 
         window.enviarMensajeChat = async function() {
-            const input = document.getElementById('txtMensajeChat'); if(!input) return;
-            const texto = input.value.trim();
+            const input = document.getElementById('txtMensajeChat'); const texto = input.value.trim();
             if(!texto) return;
             try { await addDoc(collection(db, "chat_espectadores"), { nombre: infoUsuarioLogueado.nombre, mensaje: texto, timestamp: new Date() }); input.value = ""; } catch(e) {}
         };
+
+        function iniciarEscuchaChat() {
+            try {
+                const q = query(collection(db, "chat_espectadores"), orderBy("timestamp", "desc"), limit(20));
+                onSnapshot(q, (snapshot) => {
+                    const contenedorChat = document.getElementById('contenedorMensajesChat'); if(!contenedorChat) return;
+                    contenedorChat.innerHTML = "";
+                    snapshot.forEach(doc => {
+                        let data = doc.data(); let div = document.createElement('div');
+                        div.style.cssText = "margin-bottom:8px; font-size:0.85rem; border-bottom:1px solid #24344f; padding-bottom:4px;";
+                        div.innerHTML = `<b style="color:var(--neon-cyan);">${data.nombre}:</b> ${data.mensaje}`;
+                        contenedorChat.appendChild(div);
+                    });
+                });
+            } catch(e) {}
+        }
 
         function renderizarCatalogoCanjeDinamico() {
             const grilla = document.getElementById('grillaPremiosCanjeInterna'); const avisoEstado = document.getElementById('avisoEstadoTienda');
@@ -1239,14 +1303,9 @@
             if (showEnVivoHabilitado) { alert("Los canjes se habilitan al finalizar el show."); return; }
             premioSeleccionado = { id, titulo, puntos };
             if (puntosTriviaJugador < puntos) { alert("No tenés suficientes puntos."); return; }
-            
-            const modalCanje = document.getElementById('modalConfirmarCanje');
-            const titM = document.getElementById('lblTituloModalPremio');
-            const costoM = document.getElementById('lblCostoModalPremio');
-            
-            if(modalCanje) modalCanje.style.display = "flex";
-            if(titM) titM.innerText = titulo;
-            if(costoM) costoM.innerText = `${puntos} Puntos`;
+            document.getElementById('modalConfirmarCanje').style.display = "flex";
+            document.getElementById('lblTituloModalPremio').innerText = titulo;
+            document.getElementById('lblCostoModalPremio').innerText = `${puntos} Puntos`;
         };
 
         window.confirmarCanjeDefinitivo = async function() {
@@ -1256,13 +1315,12 @@
                 await updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), { puntos: nuevoSaldo });
                 await setDoc(doc(db, "usuarios_perfil", infoUsuarioLogueado.dni), { puntos: nuevoSaldo }, { merge: true });
                 await addDoc(collection(db, "solicitudes_canje"), { dni: infoUsuarioLogueado.dni, nombre: infoUsuarioLogueado.nombre, premio_nombre: premioSeleccionado.titulo, puntos_gastados: premioSeleccionado.puntos, modalidad_usuario: modalidadElegida, fecha: new Date() });
-                const modalCanje = document.getElementById('modalConfirmarCanje');
-                if(modalCanje) modalCanje.style.display = "none";
+                document.getElementById('modalConfirmarCanje').style.display = "none";
                 alert("🎉 ¡Canje exitoso!");
                 window.open(`https://wa.me/${TU_NUMERO_WHATSAPP}?text=${encodeURIComponent(`Hola! Canjeé *${premioSeleccionado.titulo}* (${infoUsuarioLogueado.nombre})`)}`, '_blank');
             } catch(e) { alert("Error al procesar el canje."); }
         };
-        window.cerrarModalCanje = function() { const m = document.getElementById('modalConfirmarCanje'); if(m) m.style.display = "none"; };
+        window.cerrarModalCanje = function() { document.getElementById('modalConfirmarCanje').style.display = "none"; };
     </script>
 
     <style>
@@ -1293,23 +1351,15 @@
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
-        
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
-        
-        .visualizador-fiesta { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a103c 0%, #050510 100%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 10px; overflow: hidden; }
-        .bola-boliche { width: 65px; height: 65px; background: radial-gradient(circle at 30% 30%, #fff, #888 40%, #222 80%); border-radius: 50%; box-shadow: 0 0 20px var(--neon-cyan), inset 0 0 8px #fff; animation: girarBola 4s linear infinite, flotarBola 2s ease-in-out infinite alternate; margin-bottom: 8px; }
-        @keyframes girarBola { 0% { background-position: 0 0; } 100% { background-position: 50px 50px; } }
-        @keyframes flotarBola { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-6px) scale(1.05); } }
-        .numero-gigante-visual { font-size: 2.8rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,209,102,0.8); line-height: 1; margin-bottom: 4px; }
-        .nombre-tema-visual { font-size: 0.8rem; color: var(--neon-cyan); font-weight: bold; text-transform: uppercase; text-align: center; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; color:#fff; }
+        .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .item-figurita { background: #0a0e17; border: 2px dashed #2a3f64; border-radius: 10px; padding: 8px; text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
         .item-figurita.desbloqueada { border: 2px solid var(--neon-cyan); background: #151f32; }
         
+        /* ESTILOS DE LA FIGURITA DORADA (ÚLTIMA PÁGINA) */
         .item-figurita.desbloqueada-gold { 
             border: 2px solid var(--gold); 
             background: linear-gradient(135deg, rgba(255,209,102,0.3) 0%, rgba(20,20,20,0.9) 100%);
@@ -1337,6 +1387,14 @@
         .casillero-intercambio-mini.te-falta { background: rgba(0, 245, 212, 0.15); border: 2px solid var(--neon-cyan); color: var(--neon-cyan); }
         .casillero-intercambio-mini.le-sirve { background: rgba(255, 209, 102, 0.15); border: 2px solid var(--gold); color: var(--gold); }
         
+        /* ESTILOS DEL TOUR / GLOBO CENTRADO SEGURO */
+        .tour-resaltado { border: 3px solid var(--gold) !important; box-shadow: 0 0 35px var(--gold) !important; transition: all 0.3s ease; position: relative; z-index: 5001 !important; }
+        .tour-backdrop-oscuro { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 5000; display: none; }
+        .modal-overlay-tour { position: fixed; z-index: 5002; display: none; width: 90%; max-width: 320px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .modal-contenido-tour { background: #151f32; border: 2px solid var(--gold); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.9); }
+        .modal-contenido-tour h2 { color: var(--gold) !important; font-size: 1.1rem; margin-bottom: 8px; }
+        .modal-contenido-tour p { color: #fff !important; font-size: 0.9rem; line-height: 1.4; margin-bottom: 15px; }
+
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 15px; }
         .modal-contenido { background: var(--tarjeta); border: 2px solid var(--neon-cyan); border-radius: 16px; padding: 18px; width: 100%; max-width: 380px; text-align: center; }
         .grilla-premios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
@@ -1349,6 +1407,22 @@
 </head>
 <body>
 
+<!-- FONDO TRANSLÚCIDO OSCURO PARA EL TOUR -->
+<div id="tourBackdrop" class="tour-backdrop-oscuro" onclick="siguientePasoTour()"></div>
+
+<!-- MODAL TOUR GLOBO CENTRADO -->
+<div id="tourOverlay" class="modal-overlay-tour">
+    <div class="modal-contenido-tour">
+        <h2 id="tourTitulo">¡Bienvenido!</h2>
+        <p id="tourMensaje"></p>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-accion" style="background: #334155; color: #fff; padding: 8px; font-size: 0.75rem;" onclick="document.getElementById('tourOverlay').style.display='none'; document.getElementById('tourBackdrop').style.display='none'; localStorage.setItem('tour_visto', 'true');">Saltar</button>
+            <button class="btn-accion" style="background: var(--gold); color: #000; padding: 8px; font-size: 0.75rem; flex: 1.5;" onclick="siguientePasoTour()">Siguiente ▶</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODALES -->
 <div id="modalZoomFigurita" class="modal-overlay" onclick="cerrarModalZoom()">
     <div class="modal-contenido" style="max-width: 340px; border-color: var(--gold); background: #0a0e17;" onclick="event.stopPropagation()">
         <h2 id="tituloZoomFigurita" style="font-size: 1rem; color: var(--gold); margin-bottom: 8px;"></h2>
@@ -1406,6 +1480,7 @@
 
 <div class="contenedor-centrado">
     
+    <!-- LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
         <input type="text" id="txtNombre" placeholder="Tu Nombre y Apellido">
@@ -1414,13 +1489,14 @@
         <div style="margin-bottom: 12px;">
             <label style="font-size: 0.75rem; color: #94a3b8; display: block; margin-bottom: 6px;">¿Dónde jugás hoy?</label>
             <div style="display: flex; gap: 8px;">
-                <button type="button" id="btnModoPresencial" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid var(--gold); background: rgba(255,209,102,0.2); color: var(--gold); font-weight: bold; cursor: pointer;">🪑 En el Salón</button>
-                <button type="button" id="btnModoCasa" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid #2a3f64; background: #0a0e17; color: #94a3b8; font-weight: bold; cursor: pointer;">🏠 Desde Casa</button>
+                <button type="button" id="btnModoPresencial" onclick="seleccionarModalidad('presencial')" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid var(--gold); background: rgba(255,209,102,0.2); color: var(--gold); font-weight: bold; cursor: pointer;">🪑 En el Salón</button>
+                <button type="button" id="btnModoCasa" onclick="seleccionarModalidad('casa')" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid #2a3f64; background: #0a0e17; color: #94a3b8; font-weight: bold; cursor: pointer;">🏠 Desde Casa</button>
             </div>
         </div>
-        <button type="button" id="btnIngresarShow" class="btn-accion">Ingresar al Show 🎫</button>
+        <button class="btn-accion" onclick="intentarIngresarAlShow()">Ingresar al Show 🎫</button>
     </div>
 
+    <!-- PANTALLA DE ESPERA CON VIDEO TUTORIAL -->
     <div id="cajaNoHabilitado" class="card-caja" style="display:none; text-align:center;">
         <h2 style="color: var(--gold);">⏳ Esperando Habilitación</h2>
         <p style="font-size: 0.8rem; color: #cbd5e1; margin: 8px 0;">Mirá el video tutorial mientras te habilitamos:</p>
@@ -1440,6 +1516,7 @@
     
     <div id="cajaCargando" class="card-caja" style="display:none; text-align:center;"><p>Cargando sala de juego...</p></div>
     
+    <!-- ZONA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
         <div class="barra-pozo-vivo">
@@ -1465,14 +1542,9 @@
         <!-- VISTA 1: BINGO -->
         <div id="vistaBingo">
             <div class="card-caja">
-                <h2>📺 Transmisión y Fiesta</h2>
+                <h2>📺 Transmisión Oficial</h2>
                 <div class="video-container-simple">
-                    <div id="visualizadorBolaBoliche" class="visualizador-fiesta">
-                        <div class="bola-boliche"></div>
-                        <div id="lblNumeroGiganteVisual" class="numero-gigante-visual">#00</div>
-                        <div id="lblNombreTemaVisual" class="nombre-tema-visual">CARGANDO FIESTA...</div>
-                    </div>
-                    <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 </div>
             </div>
 
@@ -1480,6 +1552,7 @@
                 <div><span style="font-weight: bold;">Mi Cartón</span> <span id="lblNroCartonBadge" style="background:var(--neon-cyan); color:#000; padding:2px 8px; border-radius:6px; font-weight:bold; margin-left:6px;">000</span></div>
                 <div style="display:flex; gap:6px;">
                     <button id="btnImprimirCartonPapel" onclick="imprimirCartonPapel()" style="background:rgba(0,245,212,0.2); border:1px solid var(--neon-cyan); color:var(--neon-cyan); font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;" title="Imprimir cartón físico prolijo">🖨️ Imprimir</button>
+                    <button onclick="reiniciarTourManual()" style="background:rgba(255,209,102,0.2); border:1px solid var(--gold); color:var(--gold); font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;" title="Ver guía paso a paso">❓ Ayuda</button>
                     <button onclick="localStorage.removeItem('fgs_dni_sesion'); location.reload();" style="background:transparent; border:1px solid #334155; color:#94a3b8; font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;">🔄 Cambiar DNI</button>
                 </div>
             </div>
@@ -1502,7 +1575,7 @@
             <div class="card-caja">
                 <h2>📘 Mi Álbum (60 Figuritas)</h2>
                 <p id="lblProgresoAlbum" style="font-size: 0.8rem; color: var(--gold); font-weight: bold; margin-bottom: 10px;">Pegadas: 0 / 60</p>
-                <button id="btnAbrirSobreAlbum" class="btn-accion" style="display:none; margin-bottom: 10px; background: var(--gold); color: #000;" onclick="abrirSobreAcumulado()">🎁 ¡Abrir Sobre!</button>
+                <button id="btnAbrirSobreAlbum" class="btn-accion" style="display:none; margin-bottom: 10px; background: var(--gold); color: var(--azul-fondo);" onclick="abrirSobreAcumulado()">🎁 ¡Abrir Sobre!</button>
                 <div class="controles-album">
                     <button class="btn-pagina" onclick="cambiarPaginaAlbum(-1)">◀ Anterior</button>
                     <span id="lblPaginaActual" style="font-weight: bold; color: var(--neon-cyan); font-size: 0.85rem;">Página 1 / 10</span>
