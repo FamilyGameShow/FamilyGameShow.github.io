@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test: Audio Individual y Figuritas - FGS</title>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            authDomain: "family-game-show.firebaseapp.com",
+            projectId: "family-game-show",
+            storageBucket: "family-game-show.firebasestorage.app",
+            messagingSenderId: "509983775898",
+            appId: "1:509983775898:web:47695f5b312553d9bd1323",
+            measurementId: "G-P941BVG2ST"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let repertorioActual = {};
+        let idRepertorioActivo = "dolores";
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            await cargarDatosRepertorio();
+            escucharEstadoEnVivo();
+        });
+
+        // 1. CARGA INICIAL DE DATOS
+        async function cargarDatosRepertorio() {
+            const logBox = document.getElementById('logDiagnostico');
+            try {
+                logBox.innerHTML = "<p>⏳ Consultando Firebase...</p>";
+                
+                const snapEstado = await getDoc(doc(db, "estado_show", "actual"));
+                if (snapEstado.exists() && snapEstado.data().repertorio_activo) {
+                    idRepertorioActivo = snapEstado.data().repertorio_activo;
+                }
+                logBox.innerHTML += `<p>✅ Repertorio configurado: <b>${idRepertorioActivo}</b></p>`;
+
+                const repSnap = await getDoc(doc(db, "repertorios", idRepertorioActivo));
+                if (repSnap.exists()) {
+                    repertorioActual = repSnap.data().canciones || {};
+                    let total = Object.keys(repertorioActual).length;
+                    logBox.innerHTML += `<p>✅ Total de canciones encontradas: <b>${total}</b></p>`;
+                    renderizarBotonesPrueba();
+                    renderizarMuestraFiguritas();
+                } else {
+                    logBox.innerHTML += `<p style="color:#ff0055;">❌ No se encontró el documento '${idRepertorioActivo}' en la colección 'repertorios'.</p>`;
+                }
+            } catch (e) {
+                logBox.innerHTML += `<p style="color:#ff0055;">❌ Error: ${e.message}</p>`;
+            }
+        }
+
+        // 2. ESCUCHA EN VIVO DEL ESCENARIO
+        function escucharEstadoEnVivo() {
+            onSnapshot(doc(db, "estado_show", "actual"), (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const num = Number(data.ultima_cancion_tocada);
+                    if (num && num >= 1 && num <= 60) {
+                        reproducirCancionIndividual(num);
+                    }
+                }
+            });
+        }
+
+        // 3. EXTRACCIÓN DE ID DE YOUTUBE
+        function extraerIdYouTube(url) {
+            if (!url) return "";
+            let videoId = "";
+            if (url.includes("watch?v=")) videoId = url.split("watch?v=")[1].split("&")[0];
+            else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
+            else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
+            else videoId = url.trim();
+            return videoId;
+        }
+
+        // 4. REPRODUCCIÓN INDIVIDUAL Y ANIMACIÓN DE CUBIERTA
+        window.reproducirCancionIndividual = function(numero) {
+            const iframe = document.getElementById('iframeStream');
+            const overlay = document.getElementById('overlayVisualAudio');
+            const lblNum = document.getElementById('lblNumeroShow');
+            const lblTema = document.getElementById('lblTemaShow');
+            const logAudio = document.getElementById('logAudioInfo');
+
+            const datosTema = repertorioActual[String(numero)] || {};
+            const urlYoutube = datosTema.url_youtube || "";
+            const nombreTema = datosTema.nombre || `Canción #${numero}`;
+            const idVideo = extraerIdYouTube(urlYoutube);
+
+            lblNum.innerText = `#${String(numero).padStart(2, '0')}`;
+            lblTema.innerText = nombreTema;
+            overlay.style.display = "flex";
+
+            if (idVideo) {
+                iframe.src = `https://www.youtube.com/embed/${idVideo}?enablejsapi=1&autoplay=1&playsinline=1`;
+                logAudio.innerHTML = `<span style="color:#00f5d4;">▶ Sonando:</span> <b>#${numero} ${nombreTema}</b><br><small>ID Video: ${idVideo}</small>`;
+            } else {
+                iframe.src = "";
+                logAudio.innerHTML = `<span style="color:#ff0055;">⚠️ El tema #${numero} no tiene link de YouTube guardado en Firebase.</span>`;
+            }
+        };
+
+        function renderizarBotonesPrueba() {
+            const cont = document.getElementById('contenedorBotonesPrueba');
+            cont.innerHTML = "";
+            for (let i = 1; i <= 10; i++) {
+                let btn = document.createElement('button');
+                btn.className = "btn-tema";
+                btn.innerText = `Tema #${i}`;
+                btn.onclick = () => reproducirCancionIndividual(i);
+                cont.appendChild(btn);
+            }
+        }
+
+        // 5. MUESTRA Y DIAGNÓSTICO DE FIGURITAS
+        function renderizarMuestraFiguritas() {
+            const contenedor = document.getElementById('grillaTestFiguritas');
+            contenedor.innerHTML = "";
+
+            for (let i = 1; i <= 10; i++) {
+                let datos = repertorioActual[String(i)] || {};
+                let url = datos.url_fig || datos.url_fig_gold || "";
+                let nombre = datos.nombre || `Tema ${i}`;
+
+                let card = document.createElement('div');
+                card.className = "card-fig-test";
+
+                let htmlImg = (url && url.startsWith("http"))
+                    ? `<img src="${url}" alt="#${i}" onerror="this.parentElement.style.border='2px solid red';">` 
+                    : `<span style="color:#ff0055; font-size:0.75rem; font-weight:bold;">Sin imagen o URL no válida</span>`;
+
+                card.innerHTML = `
+                    <div style="font-weight:bold; color:#ffd166; margin-bottom:4px; font-size:0.85rem;">#${String(i).padStart(2,'0')} - ${nombre}</div>
+                    <div class="caja-img-test">${htmlImg}</div>
+                    <div class="url-debug">
+                        <b>URL guardada:</b><br>${url ? url : '(Vacío)'}<br>
+                        <b>YouTube guardado:</b><br>${datos.url_youtube ? datos.url_youtube : '(Vacío)'}
+                    </div>
+                `;
+                contenedor.appendChild(card);
+            }
+        }
+    </script>
+
+    <style>
+        body { background: #0a0e17; color: #fff; font-family: 'Segoe UI', sans-serif; padding: 15px; margin: 0; }
+        .contenedor { max-width: 680px; margin: 0 auto; }
+        .card { background: #151f32; border: 1px solid #24344f; border-radius: 12px; padding: 16px; margin-bottom: 15px; }
+        h1 { color: #00f5d4; font-size: 1.2rem; text-transform: uppercase; margin-top: 0; text-align: center; }
+        h2 { color: #ffd166; font-size: 0.95rem; text-transform: uppercase; margin-top: 0; margin-bottom: 10px; }
+        .log-box { background: #000; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.8rem; color: #00f5d4; }
+        
+        /* REPRODUCTOR Y PANTALLA QUE TAPA EL VIDEO */
+        .video-box-container { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 10px; overflow: hidden; background: #000; margin-bottom: 10px; }
+        .video-box-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        
+        .overlay-visual-audio {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0a0e17 0%, #151f32 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10;
+        }
+        .disco-animado {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffd166, #d4a373 60%, #b07d62 100%);
+            border: 3px solid #fff; box-shadow: 0 0 20px rgba(255,209,102,0.6);
+            display: flex; align-items: center; justify-content: center;
+            animation: girarDisco 4s linear infinite;
+        }
+        .disco-animado span { font-size: 1.8rem; font-weight: 900; color: #000; }
+        @keyframes girarDisco { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .btn-tema { background: #1e2d4a; border: 1px solid #00f5d4; color: #fff; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; margin: 3px; }
+        .btn-tema:hover { background: #00f5d4; color: #000; }
+
+        /* GRILLA FIGURITAS DIAGNÓSTICO */
+        .grilla-test { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .card-fig-test { background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; padding: 8px; }
+        .caja-img-test { width: 100%; height: 110px; background: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 6px 0; border: 1px dashed #334155; position: relative; }
+        .caja-img-test img { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; }
+        .url-debug { font-size: 0.65rem; color: #94a3b8; word-break: break-all; background: #151f32; padding: 4px; border-radius: 4px; line-height: 1.3; }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <h1>🛠️ Diagnóstico: Audio Completo y Figuritas</h1>
+
+        <!-- 1. REPORTE FIREBASE -->
+        <div class="card">
+            <h2>1. Estado de Conexión</h2>
+            <div id="logDiagnostico" class="log-box"></div>
+        </div>
+
+        <!-- 2. REPRODUCTOR CON AUDIO INDIVIDUAL TAPADO -->
+        <div class="card">
+            <h2>2. Audio Oficial (Canción Completa)</h2>
+            <div class="video-box-container">
+                <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                
+                <div id="overlayVisualAudio" class="overlay-visual-audio" style="display: none;">
+                    <div class="disco-animado"><span id="lblNumeroShow">--</span></div>
+                    <div id="lblTemaShow" style="font-weight: bold; color: #00f5d4; margin-top: 10px; font-size: 1rem;">...</div>
+                    <small style="color: #94a3b8; margin-top: 4px;">🔊 Reproduciendo audio completo de YouTube</small>
+                </div>
+            </div>
+            
+            <div id="logAudioInfo" style="font-size: 0.8rem; background: #000; padding: 6px; border-radius: 6px; margin-bottom: 8px;">Esperando selección de tema...</div>
+            
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px;">Probar canción individualmente:</div>
+            <div id="contenedorBotonesPrueba"></div>
+        </div>
+
+        <!-- 3. FIGURITAS -->
+        <div class="card">
+            <h2>3. Muestra de Figuritas (1 a 10)</h2>
+            <div id="grillaTestFiguritas" class="grilla-test"></div>
+        </div>
+    </div>
+</body>
+</html>
