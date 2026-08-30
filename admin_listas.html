@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Administración - Múltiples Shows</title>
+    <title>Panel de Control - Family Game Show</title>
     
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, serverTimestamp, getDocs, collection, deleteDoc, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
@@ -22,255 +22,211 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const sanitizarID = (texto) => texto.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        let repertorioActual = {};
+        let listaNumerosSalidos = [];
 
         window.addEventListener('DOMContentLoaded', async () => {
-            const selectRepertorio = document.getElementById('selectRepertorioActivo');
-            try {
-                const querySnapshot = await getDocs(collection(db, "repertorios"));
-                selectRepertorio.innerHTML = '<option value="">-- Elegir Repertorio --</option>';
-                querySnapshot.forEach((docSnap) => {
-                    let idRep = docSnap.id;
-                    let option = document.createElement('option');
-                    option.value = idRep;
-                    option.innerText = idRep.toUpperCase();
-                    selectRepertorio.appendChild(option);
-                });
-            } catch(e) { console.log("Error al cargar repertorios: ", e); }
+            await cargarConfiguracionGeneral();
+            escucharEstadoShow();
+            escucharNotificacionesEscenario();
         });
 
-        // 1. GESTIÓN DE SHOWS
-        window.guardarInfoEvento = async function() {
-            const idShow = sanitizarID(document.getElementById('txtIdShow').value);
-            const lugar = document.getElementById('txtLugarInput').value.trim();
-            const fecha = document.getElementById('txtFechaInput').value.trim();
-            const linkStream = document.getElementById('txtLinkStream').value.trim();
-            const repActivo = document.getElementById('selectRepertorioActivo').value || "principal";
-            const lineasMax = Number(document.getElementById('selectLineasMax').value) || 1;
-            const numClave = Number(document.getElementById('numClaveInput').value) || 0;
-            const btn = document.getElementById('btnGuardarEvento');
-
-            if (!idShow) { alert("¡Poné un Código Único!"); return; }
-            btn.innerText = "Guardando..."; btn.disabled = true;
-
+        async function cargarConfiguracionGeneral() {
             try {
-                await setDoc(doc(db, "shows_activos", idShow), {
-                    id_show: idShow, lugar_evento: lugar, fecha_evento: fecha,
-                    link_stream: linkStream, repertorio_activo: repActivo,
-                    lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
-                }, { merge: true });
-                
-                await setDoc(doc(db, "estado_show", "actual"), {
-                    id_show_activo: idShow, fecha_show: fecha, link_stream: linkStream,
-                    repertorio_activo: repActivo, lineas_premiadas_max: lineasMax, numero_clave_noche: numClave
-                }, { merge: true });
-                
-                alert("¡Show publicado y sincronizado con las pantallas de juego!");
-            } catch(e) { alert("Error al guardar: " + e.message); } finally { btn.innerText = "Publicar Show 📢"; btn.disabled = false; }
-        };
-
-        // 2. RESETEO
-        window.destruirYActivarSimulacionRapida = async function() {
-            if (!confirm("⚠️ ¿INICIAR NUEVA PARTIDA?\nSe vaciará la sala pero SE MANTIENEN los puntos.")) return;
-            const btn = document.getElementById('btnResetAbsoluto');
-            btn.innerText = "⚡ PREPARANDO..."; btn.disabled = true;
-
-            try {
-                const vaciar = async (col) => {
-                    const snap = await getDocs(collection(db, col));
-                    for (const d of snap.docs) await deleteDoc(doc(db, col, d.id));
-                };
-                await vaciar("pedidos_espera");
-                await vaciar("notificaciones_escenario");
-                await vaciar("chat_espectadores");
-                await vaciar("dnis_habilitados");
-
-                const snapCartones = await getDocs(collection(db, "cartones_vendidos"));
-                for (const docUser of snapCartones.docs) {
-                    let d = docUser.data();
-                    await setDoc(doc(db, "usuarios_perfil", docUser.id), { puntos: d.puntos || 0 }, { merge: true });
-                    await deleteDoc(doc(db, "cartones_vendidos", docUser.id));
-                }
-
-                await setDoc(doc(db, "estado_show", "actual"), { show_iniciado: false, ultima_cancion_tocada: 0, lista_numeros_salidos: [], contador_cartones: 0 }, { merge: true });
-                alert("¡Sala reiniciada!");
-            } catch(e) { alert("Error: " + e.message); } finally { btn.innerText = "⚡ REINICIAR FECHA (GUARDA PUNTOS)"; btn.disabled = false; }
-        };
-
-        // 3. GESTIÓN DE PREMIOS
-        window.procesarSubidaPremios = async function() {
-            const texto = document.getElementById('textoPremios').value;
-            const lineas = texto.split('\n');
-            const boton = document.getElementById('btnSubirPremios');
-            boton.innerText = "Subiendo..."; boton.disabled = true;
-
-            try {
-                const snap = await getDocs(collection(db, "catalogo_premios"));
-                for (const docSnap of snap.docs) { await deleteDoc(doc(db, "catalogo_premios", docSnap.id)); }
-
-                for (let linea of lineas) {
-                    if (linea.trim() === "") continue;
-                    let p = linea.split('\t');
-                    if (p.length >= 2) {
-                        await addDoc(collection(db, "catalogo_premios"), {
-                            titulo: p[0].trim(),
-                            puntos: Number(p[1].trim()),
-                            tipo: p[2] ? p[2].trim() : "general",
-                            descripcion: p[3] ? p[3].trim() : "",
-                            activo: true
-                        });
+                const snap = await getDoc(doc(db, "estado_show", "actual"));
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.fotos_banner) {
+                        document.getElementById('txtFotosBannerAdmin').value = data.fotos_banner.join('\n');
+                    }
+                    if (data.aviso_flash) {
+                        document.getElementById('txtAvisoFlash').value = data.aviso_flash;
+                    }
+                    if (data.repertorio_activo) {
+                        document.getElementById('txtIdRepertorioActivo').value = data.repertorio_activo;
+                        await cargarCancionesRepertorio(data.repertorio_activo);
                     }
                 }
-                alert("¡Catálogo actualizado!");
-            } catch (e) { alert("Error: " + e.message); } finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
-        };
+            } catch(e) { console.error(e); }
+        }
 
-        // 4. SUBIR REPERTORIO (LIMPIO, ORDENADO Y BLINDADO)
-        window.procesarYSubirRepertorio = async function() {
-            console.log("Iniciando subida de repertorio...");
-            const idRep = sanitizarID(document.getElementById('idRepertorio').value);
-            const texto = document.getElementById('textoRepertorio').value;
-            const boton = document.getElementById('btnSubir');
-            
-            if (!idRep || !texto) { alert("Completá el ID y el texto."); return; }
-            boton.innerText = "Subiendo..."; boton.disabled = true;
-
+        async function cargarCancionesRepertorio(idRep) {
+            repertorioActual = {};
             try {
-                let lineas = texto.split('\n');
-                let cancionesObj = {};
-                
-                lineas.forEach((linea, index) => {
-                    if (linea.trim() === "") return;
-                    let partes = linea.split('\t');
-                    
-                    let numero = partes[0] ? partes[0].trim() : String(index + 1);
-                    let nombre = partes[1] ? partes[1].trim() : "";
-                    let urlFig = partes[2] ? partes[2].trim() : "";
-                    let pregunta = partes[3] ? partes[3].trim() : "";
-                    let opA = partes[4] ? partes[4].trim() : "";
-                    let opB = partes[5] ? partes[5].trim() : "";
-                    let correcta = partes[6] ? partes[6].trim() : "";
-                    let urlYoutube = partes[7] ? partes[7].trim() : "";
+                const snap = await getDocs(collection(db, "repertorios", idRep, "canciones"));
+                if (!snap.empty) {
+                    snap.forEach(d => {
+                        let n = parseInt(d.id, 10);
+                        repertorioActual[String(n)] = d.data();
+                    });
+                } else {
+                    const docSnap = await getDoc(doc(db, "repertorios", idRep));
+                    if (docSnap.exists() && docSnap.data().canciones) {
+                        let c = docSnap.data().canciones;
+                        Object.keys(c).forEach(k => { repertorioActual[String(parseInt(k, 10))] = c[k]; });
+                    }
+                }
+                renderizarBotonesEscenario();
+            } catch(e) { console.error(e); }
+        }
 
-                    let urlFigLimpia = urlFig.includes('/http') ? urlFig.split('/http')[0] : urlFig;
-
-                    cancionesObj[numero] = {
-                        nombre: nombre,
-                        url_fig: urlFigLimpia,
-                        pregunta: pregunta,
-                        opcion_a: opA,
-                        opcion_b: opB,
-                        correcta: correcta,
-                        url_youtube: urlYoutube
-                    };
-                });
-
-                console.log("Enviando a Firebase...", cancionesObj);
-                await setDoc(doc(db, "repertorios", idRep), {
-                    nombre_show: idRep,
-                    canciones: cancionesObj
-                });
-
-                alert("¡Repertorio subido limpio y ordenado con éxito!");
-                location.reload();
-            } catch(e) {
-                console.error("Error atrapado:", e);
-                alert("Error al subir repertorio: " + e.message);
-            } finally {
-                boton.innerText = "Subir Repertorio 🚀"; boton.disabled = false;
-            }
-        };
-
-        window.borrarShowDeCartelera = async function() {
-            const idShow = sanitizarID(document.getElementById('txtIdShow').value);
-            if (confirm(`¿BORRAR '${idShow}'?`)) { await deleteDoc(doc(db, "shows_activos", idShow)); alert("Borrado."); }
-        };
-
-        onSnapshot(collection(db, "catalogo_premios"), (snapshot) => {
-            const contenedor = document.getElementById('listaPremiosAdminListas');
-            if (!contenedor) return;
-            contenedor.innerHTML = "";
-            snapshot.forEach(docSnap => {
-                let p = docSnap.data();
-                let div = document.createElement('div');
-                div.style.cssText = "background:#0f172a; border:1px solid #334155; padding:8px; border-radius:6px; font-size:0.75rem; display:flex; justify-content:space-between;";
-                div.innerHTML = `<span><b>${p.titulo}</b> (${p.puntos} pts)</span> <span>${p.tipo}</span>`;
-                contenedor.appendChild(div);
+        function escucharEstadoShow() {
+            onSnapshot(doc(db, "estado_show", "actual"), (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    listaNumerosSalidos = (data.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
+                    document.getElementById('lblUltimaCantada').innerText = data.ultima_cancion_tocada ? `#${String(data.ultima_cancion_tocada).padStart(2,'0')}` : "--";
+                    renderizarBotonesEscenario();
+                }
             });
-        });
+        }
+
+        function escucharNotificacionesEscenario() {
+            onSnapshot(collection(db, "notificaciones_escenario"), (snapshot) => {
+                const caja = document.getElementById('cajaNotificacionesAdmin');
+                caja.innerHTML = "";
+                snapshot.forEach(d => {
+                    let notif = d.data();
+                    let div = document.createElement('div');
+                    div.className = "item-notif";
+                    div.innerHTML = `<b>${notif.tipo}:</b> ${notif.nombre} (Cartón #${String(notif.nro_carton || '00').padStart(3, '0')})`;
+                    caja.prepend(div);
+                });
+            });
+        }
+
+        function renderizarBotonesEscenario() {
+            const grilla = document.getElementById('grillaBotonesCancionesAdmin');
+            if (!grilla) return;
+            grilla.innerHTML = "";
+
+            for (let i = 1; i <= 60; i++) {
+                let btn = document.createElement('button');
+                let salio = listaNumerosSalidos.includes(String(i));
+                btn.className = `btn-cancion-admin ${salio ? 'salido' : ''}`;
+                
+                let datos = repertorioActual[String(i)] || {};
+                let nombreLimpio = datos.nombre ? String(datos.nombre).replace(/^\d+[\s-:=]*/, '') : `Tema ${i}`;
+                
+                btn.innerHTML = `<span style="font-size:1.1rem; font-weight:900;">#${String(i).padStart(2,'0')}</span><br><small>${nombreLimpio.substring(0, 18)}</small>`;
+                btn.onclick = () => cantarCancionEscenario(i);
+                grilla.appendChild(btn);
+            }
+        }
+
+        window.cantarCancionEscenario = async function(numero) {
+            let numStr = String(parseInt(numero, 10));
+            if (!listaNumerosSalidos.includes(numStr)) {
+                listaNumerosSalidos.push(numStr);
+            }
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    ultima_cancion_tocada: numStr,
+                    lista_numeros_salidos: listaNumerosSalidos,
+                    show_iniciado: true
+                });
+            } catch(e) { alert("Error: " + e.message); }
+        };
+
+        window.guardarFotosBannerAdmin = async function() {
+            const texto = document.getElementById('txtFotosBannerAdmin').value;
+            const listaUrls = texto.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+            try {
+                await setDoc(doc(db, "estado_show", "actual"), { fotos_banner: listaUrls }, { merge: true });
+                alert(`✅ ¡Se guardaron ${listaUrls.length} fotos para el carrusel!`);
+            } catch(e) { alert("Error: " + e.message); }
+        };
+
+        window.guardarAvisoFlashAdmin = async function() {
+            const texto = document.getElementById('txtAvisoFlash').value.trim();
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), { aviso_flash: texto });
+                alert("✅ Aviso publicado.");
+            } catch(e) { alert("Error: " + e.message); }
+        };
+
+        window.cambiarRepertorioActivoAdmin = async function() {
+            const id = document.getElementById('txtIdRepertorioActivo').value.trim();
+            if (!id) return;
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), { repertorio_activo: id });
+                await cargarCancionesRepertorio(id);
+                alert(`✅ Repertorio cambiado a '${id}'.`);
+            } catch(e) { alert("Error: " + e.message); }
+        };
+
+        window.reiniciarSorteo = async function() {
+            if (!confirm("¿Seguro que querés reiniciar todas las bolillas cantadas del show?")) return;
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    lista_numeros_salidos: [],
+                    ultima_cancion_tocada: null,
+                    contador_lineas_ganadas: 0,
+                    bingo_ganado: false
+                });
+                alert("✅ Sorteo reiniciado.");
+            } catch(e) { alert("Error: " + e.message); }
+        };
     </script>
 
     <style>
-        :root { --dark: #0f172a; --card: #1e293b; --primary: #e63946; --cyan: #00f5d4; --gold: #ffd166; --play: #4caf50; }
-        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; }
-        body { background: var(--dark); color: #fff; padding: 20px; }
-        .panel-container { max-width: 700px; margin: 0 auto; }
-        .seccion-card { background: var(--card); padding: 20px; border-radius: 14px; margin-bottom: 20px; border: 1px solid #334155; }
-        h1 { font-size: 1.5rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 25px; text-align: center; border-bottom: 2px solid var(--card); padding-bottom: 12px; }
-        h2 { font-size: 1.1rem; margin-bottom: 15px; color: var(--gold); text-transform: uppercase; }
-        label { font-size: 0.8rem; color: #94a3b8; font-weight: bold; margin-bottom: 5px; display: block; }
-        input, select, textarea { width: 100%; padding: 10px; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 8px; margin-bottom: 10px; }
-        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-top: 5px; }
-        .btn-music { background: var(--cyan); color: #000; }
-        .btn-destructive { background: linear-gradient(135deg, #70e000 0%, #38b000 100%); color: #000; font-size: 1rem; border: 2px solid #fff; }
-        .btn-event { background: var(--primary); color: #fff; }
-        .btn-borrar { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
-        .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .row-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        :root { --azul-fondo: #0a0e17; --tarjeta: #151f32; --neon-cyan: #00f5d4; --neon-rosa: #ff0055; --gold: #ffd166; --green: #25d366; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        body { background: var(--azul-fondo); padding: 15px; }
+        .contenedor { max-width: 900px; margin: 0 auto; }
+        .card-caja { background: var(--tarjeta); border: 1px solid #24344f; border-radius: 12px; padding: 16px; margin-bottom: 15px; }
+        h1 { color: var(--neon-cyan); font-size: 1.4rem; text-transform: uppercase; margin-bottom: 12px; }
+        h2 { color: var(--gold); font-size: 1rem; text-transform: uppercase; margin-bottom: 10px; }
+        input, textarea { width: 100%; padding: 10px; background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; font-size: 0.9rem; margin-bottom: 8px; }
+        .btn-accion { width: 100%; padding: 10px; background: var(--neon-rosa); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 0.85rem; }
+        .grilla-bolillero { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
+        .btn-cancion-admin { background: #1e2d4a; border: 1px solid #2a3f64; padding: 10px 4px; border-radius: 8px; cursor: pointer; text-align: center; }
+        .btn-cancion-admin.salido { background: var(--green); color: #000; border-color: #fff; }
+        .btn-cancion-admin.salido small { color: #000; font-weight: bold; }
+        .item-notif { background: #0a0e17; border-left: 3px solid var(--gold); padding: 6px 10px; border-radius: 4px; margin-bottom: 6px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
-    <div class="panel-container">
-        <h1>🎛️ Centro de Cargas MULTI-SHOW</h1>
+    <div class="contenedor">
+        <h1>🎛️ Panel Escenario - Family Game Show</h1>
 
-        <div class="seccion-card">
-            <h2>📅 1. Crear / Modificar Show</h2>
-            <input type="text" id="txtIdShow" placeholder="Código Único (show_viernes_12)">
-            <div class="row-grid">
-                <input type="text" id="txtLugarInput" placeholder="Lugar">
-                <input type="text" id="txtFechaInput" placeholder="Fecha">
+        <div class="card-caja" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <small style="color:#94a3b8;">Última Canción Cantada:</small>
+                <div id="lblUltimaCantada" style="font-size:2rem; font-weight:900; color:var(--gold);">--</div>
             </div>
-            <input type="text" id="txtLinkStream" placeholder="Link YouTube (Embed)">
-            <select id="selectRepertorioActivo"></select>
-            
-            <div class="row-grid-3" style="margin-top: 5px;">
-                <div>
-                    <label>Máx. Líneas:</label>
-                    <input type="number" id="selectLineasMax" value="1" min="1">
-                </div>
-                <div>
-                    <label>Bola Loca (Nº):</label>
-                    <input type="number" id="numClaveInput" placeholder="Ej: 15">
-                </div>
-                <div>
-                    <label>&nbsp;</label>
-                    <span style="font-size: 0.7rem; color: #94a3b8; display: block; padding-top: 6px;">Configuración activa</span>
-                </div>
+            <button class="btn-accion" style="width:auto; background:#334155;" onclick="reiniciarSorteo()">🔄 Reiniciar Sorteo</button>
+        </div>
+
+        <div class="card-caja">
+            <h2>📢 Aviso Flash en Pantalla</h2>
+            <input type="text" id="txtAvisoFlash" placeholder="Mensaje para todos los jugadores en vivo...">
+            <button class="btn-accion" style="background:var(--neon-rosa);" onclick="guardarAvisoFlashAdmin()">Publicar Aviso 📢</button>
+        </div>
+
+        <div class="card-caja">
+            <h2>🖼️ Banner de Fotos Rotativas (Fondo de Música)</h2>
+            <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:6px;">Pegá un link directo de imagen por línea (publicidad, bandas, próximas fechas):</p>
+            <textarea id="txtFotosBannerAdmin" style="height:100px;" placeholder="https://i.ibb.co/foto1.jpg&#10;https://i.ibb.co/foto2.jpg"></textarea>
+            <button class="btn-accion" style="background:var(--neon-cyan); color:#000;" onclick="guardarFotosBannerAdmin()">Guardar Fotos del Carrusel 💾</button>
+        </div>
+
+        <div class="card-caja">
+            <h2>🎵 Repertorio Activo</h2>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="txtIdRepertorioActivo" value="lista_prueba" placeholder="ID documento repertorio (ej: lista_prueba)">
+                <button class="btn-accion" style="width:auto; background:var(--gold); color:#000;" onclick="cambiarRepertorioActivoAdmin()">Cargar</button>
             </div>
-
-            <button class="btn btn-event" id="btnGuardarEvento" onclick="guardarInfoEvento()">Publicar Show 📢</button>
-            <button class="btn btn-borrar" onclick="borrarShowDeCartelera()">🗑️ Borrar Show</button>
         </div>
 
-        <div class="seccion-card">
-            <h2 style="color: var(--play);">⚡ Control de Nueva Partida</h2>
-            <button class="btn btn-destructive" id="btnResetAbsoluto" onclick="destruirYActivarSimulacionRapida()">⚡ REINICIAR FECHA (GUARDA PUNTOS)</button>
+        <div class="card-caja">
+            <h2>🎱 Bolillero Digital de Canciones</h2>
+            <div id="grillaBotonesCancionesAdmin" class="grilla-bolillero"></div>
         </div>
 
-        <div class="seccion-card">
-            <h2 style="color: var(--gold);">🎁 3. Carga Masiva de Premios</h2>
-            <label>Formato: Titulo [TAB] Puntos [TAB] Tipo [TAB] Descripción</label>
-            <textarea id="textoPremios" style="height: 120px;" placeholder="Trago en barra	200	presencial	Válido en la barra
-Kilo de Helado	1500	casa	Voucher digital"></textarea>
-            <button class="btn btn-music" id="btnSubirPremios" onclick="procesarSubidaPremios()">Subir Catálogo de Premios 🎁</button>
-            <div id="listaPremiosAdminListas" style="margin-top: 15px; display: grid; gap: 6px;"></div>
-        </div>
-
-        <div class="seccion-card">
-            <h2>🎵 2. Subir Repertorio</h2>
-            <input type="text" id="idRepertorio" placeholder="Nombre de lista (ID)">
-            <textarea id="textoRepertorio" placeholder="Nº [TAB] Nombre [TAB] Fig Normal [TAB] Pregunta Trivia [TAB] Op A [TAB] Op B [TAB] Correcta [TAB] YouTube Link" style="height: 120px;"></textarea>
-            <button class="btn btn-music" id="btnSubir" onclick="procesarYSubirRepertorio()">Subir Repertorio 🚀</button>
+        <div class="card-caja">
+            <h2>🔔 Notificaciones del Escenario (Premios / Líneas / Bingo)</h2>
+            <div id="cajaNotificacionesAdmin" style="max-height:200px; overflow-y:auto;"></div>
         </div>
     </div>
 </body>
