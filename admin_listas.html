@@ -56,6 +56,12 @@
                     if (data.numero_clave_noche) document.getElementById('numClaveInput').value = data.numero_clave_noche;
                     if (data.porcentaje_ganancia !== undefined) document.getElementById('selectComisionOrganizador').value = data.porcentaje_ganancia;
                     
+                    // Links especiales
+                    if (data.link_preshow) document.getElementById('txtLinkPreshow').value = data.link_preshow;
+                    if (data.link_despedida) document.getElementById('txtLinkDespedida').value = data.link_despedida;
+                    if (data.link_festejo_linea) document.getElementById('txtLinkFestejoLinea').value = data.link_festejo_linea;
+                    if (data.link_festejo_bingo) document.getElementById('txtLinkFestejoBingo').value = data.link_festejo_bingo;
+
                     const spanEstadoShow = document.getElementById('lblEstadoShowActivo');
                     if (spanEstadoShow) {
                         spanEstadoShow.innerText = data.show_iniciado ? "🟢 EN VIVO" : "🔴 EN ESPERA";
@@ -160,7 +166,40 @@
             finally { btn.innerText = "Guardar Fotos del Banner 💾"; btn.disabled = false; }
         };
 
-        // 4. RESETEO COMPLETO
+        // 4. GUARDAR AUDIOS ESPECIALES (PRE-SHOW, DESPEDIDA, FESTEJOS)
+        window.guardarAudiosEspeciales = async function() {
+            const pre = document.getElementById('txtLinkPreshow').value.trim();
+            const fin = document.getElementById('txtLinkDespedida').value.trim();
+            const festLinea = document.getElementById('txtLinkFestejoLinea').value.trim();
+            const festBingo = document.getElementById('txtLinkFestejoBingo').value.trim();
+            const btn = document.getElementById('btnGuardarAudios');
+            btn.innerText = "Guardando..."; btn.disabled = true;
+
+            try {
+                await setDoc(doc(db, "estado_show", "actual"), {
+                    link_preshow: pre,
+                    link_despedida: fin,
+                    link_festejo_linea: festLinea,
+                    link_festejo_bingo: festBingo
+                }, { merge: true });
+                alert("¡Audios especiales guardados con éxito!");
+            } catch(e) { alert("Error al guardar audios: " + e.message); }
+            finally { btn.innerText = "Guardar Audios Especiales 🎬"; btn.disabled = false; }
+        };
+
+        // 5. ACCIÓN FINALIZAR SHOW (DISPARAR DESPEDIDA)
+        window.finalizarShowDespedida = async function() {
+            if (!confirm("¿Querés cerrar el show y reproducir la música de despedida?")) return;
+            try {
+                await updateDoc(doc(db, "estado_show", "actual"), {
+                    ultima_cancion_tocada: 999,
+                    evento_especial: "DESPEDIDA"
+                });
+                alert("👋 ¡Música de despedida activada en todos los cartones!");
+            } catch(e) { alert("Error: " + e.message); }
+        };
+
+        // 6. RESETEO COMPLETO
         window.destruirYActivarSimulacionRapida = async function() {
             if (!confirm("⚠️ ¿INICIAR NUEVA PARTIDA?\nSe vaciarán cartones y pedidos, pero SE GUARDAN los puntos de los jugadores.")) return;
             const btn = document.getElementById('btnResetAbsoluto');
@@ -190,6 +229,7 @@
                     contador_cartones: 0,
                     contador_lineas_ganadas: 0,
                     bingo_ganado: false,
+                    evento_especial: null,
                     aviso_flash: ""
                 }, { merge: true });
 
@@ -198,7 +238,7 @@
             finally { btn.innerText = "⚡ REINICIAR FECHA (GUARDA PUNTOS)"; btn.disabled = false; }
         };
 
-        // 5. SUBIDA DE PREMIOS
+        // 7. SUBIDA DE PREMIOS
         window.procesarSubidaPremios = async function() {
             const texto = document.getElementById('textoPremios').value;
             const lineas = texto.split('\n');
@@ -227,7 +267,7 @@
             finally { boton.innerText = "Subir Catálogo de Premios 🎁"; boton.disabled = false; }
         };
 
-        // 6. SUBIDA DE REPERTORIO
+        // 8. SUBIDA DE REPERTORIO
         window.procesarYSubirRepertorio = async function() {
             const idRep = sanitizarID(document.getElementById('idRepertorio').value);
             const texto = document.getElementById('textoRepertorio').value;
@@ -313,6 +353,7 @@
     <div class="panel-container">
         <h1>🎛️ Centro de Cargas y Control SHOW</h1>
 
+        <!-- AVISOS EN VIVO -->
         <div class="seccion-card">
             <h2>📢 Mensaje Flash a los Cartones</h2>
             <input type="text" id="txtAvisoFlash" placeholder="Ej: ¡Cantaron Línea! / Pausa de 5 minutos...">
@@ -322,6 +363,31 @@
             </div>
         </div>
 
+        <!-- AUDIOS ESPECIALES DEL SHOW (PRESHOW, DESPEDIDA, FESTEJOS) -->
+        <div class="seccion-card">
+            <h2>🎬 Audios y Festejos Especiales (YouTube)</h2>
+            <label>🎵 Música Pre-Show (Espera antes de empezar):</label>
+            <input type="text" id="txtLinkPreshow" placeholder="Link YouTube música de espera">
+            
+            <label>👋 Música Despedida / Cierre del Show:</label>
+            <input type="text" id="txtLinkDespedida" placeholder="Link YouTube música final">
+            
+            <div class="row-grid">
+                <div>
+                    <label>🎉 Fanfarria Ganador Línea:</label>
+                    <input type="text" id="txtLinkFestejoLinea" placeholder="Link YouTube aplausos/festejo">
+                </div>
+                <div>
+                    <label>🏆 Fanfarria Ganador Bingo:</label>
+                    <input type="text" id="txtLinkFestejoBingo" placeholder="Link YouTube gran campeón">
+                </div>
+            </div>
+
+            <button class="btn btn-music" id="btnGuardarAudios" onclick="guardarAudiosEspeciales()" style="margin-bottom:8px;">Guardar Audios Especiales 🎬</button>
+            <button class="btn" style="background:#f59e0b; color:#000;" onclick="finalizarShowDespedida()">👋 Activar Música de Despedida Final</button>
+        </div>
+
+        <!-- BANNER DE FOTOS ROTATIVAS (FONDO SHOW) -->
         <div class="seccion-card">
             <h2>🖼️ Banner de Fotos Rotativas (Fondo de Música)</h2>
             <label>Pegá un link directo de imagen por línea (ImgBB / Web):</label>
@@ -329,6 +395,7 @@
             <button class="btn btn-music" id="btnGuardarBanner" onclick="guardarFotosBanner()">Guardar Fotos del Banner 💾</button>
         </div>
 
+        <!-- CONFIGURACIÓN DE SHOW -->
         <div class="seccion-card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h2>📅 1. Configuración Show Activo</h2>
@@ -367,23 +434,27 @@
             <button class="btn btn-event" id="btnGuardarEvento" onclick="guardarInfoEvento()">Publicar / Sincronizar Show 📢</button>
         </div>
 
+        <!-- REINICIO DE PARTIDA -->
         <div class="seccion-card">
             <h2>⚡ Reinicio de Sala</h2>
             <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">Limpia los cartones del show actual conservando los puntos ganados de los usuarios.</p>
             <button class="btn btn-destructive" id="btnResetAbsoluto" onclick="destruirYActivarSimulacionRapida()">⚡ REINICIAR FECHA (GUARDA PUNTOS)</button>
         </div>
 
+        <!-- NOTIFICACIONES EN VIVO -->
         <div class="seccion-card">
             <h2>🔔 Notificaciones del Escenario (Premios)</h2>
             <div id="listaNotificacionesAdmin" style="max-height: 180px; overflow-y: auto;"></div>
         </div>
 
+        <!-- CARGA DE PREMIOS -->
         <div class="seccion-card">
             <h2>🎁 Catálogo de Premios</h2>
             <textarea id="textoPremios" style="height: 100px;" placeholder="Trago en barra&#9;200&#9;presencial&#9;Válido en la barra&#10;Kilo de Helado&#9;1500&#9;casa&#9;Voucher digital"></textarea>
             <button class="btn btn-music" id="btnSubirPremios" onclick="procesarSubidaPremios()">Subir Catálogo de Premios 🎁</button>
         </div>
 
+        <!-- CARGA DE REPERTORIO -->
         <div class="seccion-card">
             <h2>🎵 Subir Repertorio</h2>
             <input type="text" id="idRepertorio" placeholder="Nombre ID del repertorio (ej: rock_nacional)">
