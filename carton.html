@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Family Game Show - Mi Cartón Digital</title>
     
+    <!-- LIBRERÍA DE CONFETI PARA GANADORES -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, onSnapshot, updateDoc, collection, addDoc, getDoc, setDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -112,6 +115,11 @@
         let urlStreamActualCargada = "";
         let showEnVivoHabilitado = false;
 
+        let linkPreShowGlobal = "";
+        let linkDespedidaGlobal = "";
+        let linkFestejoLineaGlobal = "";
+        let linkFestejoBingoGlobal = "";
+
         let listaFotosBanner = [];
         let indiceFotoActual = 0;
         let intervaloCarrusel = null;
@@ -164,12 +172,24 @@
                 return;
             }
 
-            // Modo Automático (Canción individual o Pantalla de Espera Activa)
             if (overlayVisual) overlayVisual.style.display = "flex";
 
             const num = Number(ultimaCancionCantada);
 
-            if (num && num >= 1 && num <= 60) {
+            // 1. DESPEDIDA FINAL
+            if (num === 999) {
+                if (lblNum) lblNum.innerText = "👋";
+                if (lblTema) lblTema.innerText = "¡Gracias por participar! Nos vemos en el próximo show.";
+                let idFin = extraerIdYouTube(linkDespedidaGlobal);
+                if (idFin && ultimaCancionTocadaProcesada !== 999) {
+                    ultimaCancionTocadaProcesada = 999;
+                    iframe.src = `https://www.youtube.com/embed/${idFin}?enablejsapi=1&autoplay=1&playsinline=1`;
+                }
+                return;
+            }
+
+            // 2. CANCIÓN EN VIVO CANTADA
+            if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
                 let datosTema = obtenerDatosCancion(num);
                 let urlYoutube = datosTema.url_youtube || "";
                 let nombreTema = datosTema.nombre || `Canción #${String(num).padStart(2, '0')}`;
@@ -183,8 +203,35 @@
                     iframe.src = `https://www.youtube.com/embed/${idVideo}?enablejsapi=1&autoplay=1&playsinline=1`;
                 }
             } else {
+                // 3. MODO PRE-SHOW (ESPERA)
                 if (lblNum) lblNum.innerText = "FGS";
                 if (lblTema) lblTema.innerText = "¡El Show comenzará pronto!";
+                
+                let idPre = extraerIdYouTube(linkPreShowGlobal);
+                if (idPre && ultimaCancionTocadaProcesada !== "preshow") {
+                    ultimaCancionTocadaProcesada = "preshow";
+                    iframe.src = `https://www.youtube.com/embed/${idPre}?enablejsapi=1&autoplay=1&loop=1&playlist=${idPre}&playsinline=1`;
+                }
+            }
+        }
+
+        // DISPARADORES DE FESTEJO Y CONFETI
+        function dispararFestejoGanador(tipo) {
+            if (window.confetti) {
+                confetti({
+                    particleCount: 120,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            }
+
+            const iframe = document.getElementById('iframeStream');
+            if (tipo === "LINEA" && linkFestejoLineaGlobal) {
+                let idAudio = extraerIdYouTube(linkFestejoLineaGlobal);
+                if (idAudio && iframe) iframe.src = `https://www.youtube.com/embed/${idAudio}?enablejsapi=1&autoplay=1&playsinline=1`;
+            } else if (tipo === "BINGO" && linkFestejoBingoGlobal) {
+                let idAudio = extraerIdYouTube(linkFestejoBingoGlobal);
+                if (idAudio && iframe) iframe.src = `https://www.youtube.com/embed/${idAudio}?enablejsapi=1&autoplay=1&playsinline=1`;
             }
         }
 
@@ -382,6 +429,13 @@
                     if (datosEstado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
                     if (datosEstado.fotos_banner) iniciarCarruselFotos(datosEstado.fotos_banner);
                     if (datosEstado.ultima_cancion_tocada) ultimaCancionInicial = datosEstado.ultima_cancion_tocada;
+                    
+                    // Links de audios especiales
+                    linkPreShowGlobal = datosEstado.link_preshow || "";
+                    linkDespedidaGlobal = datosEstado.link_despedida || "";
+                    linkFestejoLineaGlobal = datosEstado.link_festejo_linea || "";
+                    linkFestejoBingoGlobal = datosEstado.link_festejo_bingo || "";
+
                     numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     actualizarBannerAvisoFlash(datosEstado.aviso_flash);
                 }
@@ -447,6 +501,11 @@
                     if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
                     if (estado.fotos_banner) iniciarCarruselFotos(estado.fotos_banner);
                     
+                    linkPreShowGlobal = estado.link_preshow || "";
+                    linkDespedidaGlobal = estado.link_despedida || "";
+                    linkFestejoLineaGlobal = estado.link_festejo_linea || "";
+                    linkFestejoBingoGlobal = estado.link_festejo_bingo || "";
+
                     actualizarBannerAvisoFlash(estado.aviso_flash);
 
                     let idRepertorio = estado.repertorio_activo || "lista_prueba";
@@ -855,7 +914,7 @@
                 return;
             }
 
-            // LÍNEA
+            // LÍNEA (CON AUDIOS Y CONFETI)
             let bingoYaCantadoGlobal = (estadoGlobal.bingo_ganado === true || yaCanteBingo);
             let totalLineasHabilitadasMax = Number(estadoGlobal.lineas_premiadas_max || 1);
             let lineasActualesGlobales = Number(estadoGlobal.contador_lineas_ganadas || 0);
@@ -879,12 +938,13 @@
                     }); 
                 } catch(e){}
 
+                dispararFestejoGanador("LINEA");
                 document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
                 document.getElementById('lblMensajeBloqueo').style.display = "block"; 
                 alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste la Línea #${nroLineaOrden} y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
             }
 
-            // BINGO
+            // BINGO (CON AUDIOS Y CONFETI)
             if (aciertosReales === misNumeros.length && misNumeros.length > 0 && !yaCanteBingo && !estadoGlobal.bingo_ganado) {
                 yaCanteBingo = true; 
                 try { 
@@ -894,6 +954,7 @@
                         nro_carton: nroCartonAsignado, monto: pozoTotalCalculado, timestamp: new Date() 
                     }); 
                 } catch(e){}
+                dispararFestejoGanador("BINGO");
                 document.getElementById('modalBingoGanado').style.display = "flex";
             }
         }
@@ -1007,6 +1068,7 @@
                 cajaPremioEspecial.style.display = "block";
                 cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.9rem;">👑 ¡ÁLBUM COMPLETADO! Ganaste tu Pase Libre al Próximo Show 🎉</p>`;
                 dispararEspamentoDorado();
+                dispararFestejoGanador("LINEA");
             } else if (ganoFiguritaUltraOro001) { 
                 cajaPremioEspecial.style.display = "block"; 
                 cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA #01 DE ORO ULTRA-RARA! Pase Libre Ganado 🎁</p>`;
@@ -1586,7 +1648,7 @@
                 <div class="video-container-simple" style="position: relative;">
                     <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                     
-                    <!-- CUBIERTA VISUAL SIEMPRE ACTIVA CON CARRUSEL DE FOTOS ROTATIVAS -->
+                    <!-- CUBIERTA VISUAL CON CARRUSEL DE FOTOS ROTATIVAS -->
                     <div id="overlayVisualAudio" class="overlay-visual-audio">
                         <div id="carruselFondoShow" class="carrusel-fondo"></div>
                         <div class="sombra-oscura-carrusel"></div>
@@ -1609,7 +1671,7 @@
                 </div>
             </div>
             
-            <!-- GRILLA APASADA DEL CARTÓN (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
+            <!-- GRILLA APASADA (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
             <div class="card-caja">
                 <button class="btn-modo-toggle" id="btnToggleModoMarcado" onclick="toggleModoMarcado()">Modo: Automático ⚡ (Cambiar a Manual ✍️)</button>
                 <div class="grilla-bingo-viva" id="grillaNumerosBingo"></div>
