@@ -31,14 +31,14 @@
         let pasoActual = 0;
         const pasosTour = [
             { titulo: "🎟️ ¡Bienvenido al Show!", mensaje: "Vamos a darte un tour rápido para que sepas cómo jugar y ganar premios. ¡Seguime!", el: "cajaJuegoActivo", func: null },
-            { titulo: "📺 Transmisión en Vivo", mensaje: "Desde acá escuchás todo lo que pasa en el show y ves el bolillero.", el: "iframeStream", func: () => cambiarSeccionJuego('bingo') },
-            { titulo: "🎟️ Tu Cartón de Bingo", mensaje: "Acá verás tus números. Si el sistema se pierde, podés usar el modo manual para tachar vos mismo.", el: "grillaNumerosBingo", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "📺 Transmisión Oficial", mensaje: "Desde acá escuchás la música del show mientras jugás.", el: "iframeStream", func: () => cambiarSeccionJuego('bingo') },
+            { titulo: "🎟️ Tu Cartón de Bingo", mensaje: "Acá verás tus números. Podés usar el modo manual para tachar vos mismo.", el: "grillaNumerosBingo", func: () => cambiarSeccionJuego('bingo') },
             { titulo: "🖨️ Imprimir Cartón", mensaje: "Si preferís jugar con papel y fibron, podés imprimir tu cartón físico en apaisado directamente desde acá.", el: "btnImprimirCartonPapel", func: () => cambiarSeccionJuego('bingo') },
             { titulo: "🎵 Pedí tu tema", mensaje: "Elegí una canción de la lista y ganá un sobre de figuritas extra cuando suene.", el: "selectCanciones", func: () => cambiarSeccionJuego('bingo') },
-            { titulo: "📘 Álbum y Figuritas", mensaje: "Acá abrís tus sobres y coleccionás las 60 figuritas del álbum. ¡Si lo completás ganás premios!", el: "tabBtn_album", func: () => cambiarSeccionJuego('album') },
-            { titulo: "❓ Desafíos de Trivia", mensaje: "¡Respondé bien las preguntas musicales cuando suenen los temas para sumar puntos y ganar sobres!", el: "tabBtn_trivia", func: () => cambiarSeccionJuego('trivia') },
+            { titulo: "📘 Álbum y Figuritas", mensaje: "Acá abrís tus sobres y coleccionás las 60 figuritas del álbum.", el: "tabBtn_album", func: () => cambiarSeccionJuego('album') },
+            { titulo: "❓ Desafíos de Trivia", mensaje: "¡Respondé bien las preguntas musicales para sumar puntos y ganar sobres!", el: "tabBtn_trivia", func: () => cambiarSeccionJuego('trivia') },
             { titulo: "💬 Sala de Intercambio", mensaje: "¡No te quedes con repetidas! Acá podés ver las de otros participantes y hacer trueques.", el: "tabBtn_sala", func: () => cambiarSeccionJuego('sala') },
-            { titulo: "🎁 Tienda de Canjes", mensaje: "¡Canjeá tus puntos acumulados por tragos, pizzerías, helados y mucho más (completando el álbum)!", el: "tabBtn_canje", func: () => cambiarSeccionJuego('canje') }
+            { titulo: "🎁 Tienda de Canjes", mensaje: "¡Canjeá tus puntos acumulados por premios (completando el álbum)!", el: "tabBtn_canje", func: () => cambiarSeccionJuego('canje') }
         ];
 
         window.iniciarTour = function() {
@@ -106,74 +106,84 @@
             }
         };
 
-        // STREAMING YOUTUBE
+        // REPRODUCTOR Y CARRUSEL DE FOTOS ROTATIVO
         let modoTransmisionActual = "automatico";
-        let loopInterval = null;
-        let retornoTimeout = null;
         let ultimaCancionTocadaProcesada = null;
         let urlStreamActualCargada = "";
         let showEnVivoHabilitado = false;
 
-        function enviarComandoYouTube(func, args = []) {
-            const iframe = document.getElementById('iframeStream');
-            if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage(JSON.stringify({
-                    event: 'command', func: func, args: Array.isArray(args) ? args : [args]
-                }), '*');
-            }
+        let listaFotosBanner = [];
+        let indiceFotoActual = 0;
+        let intervaloCarrusel = null;
+
+        function iniciarCarruselFotos(fotos) {
+            if (!fotos || fotos.length === 0) return;
+            listaFotosBanner = fotos;
+            const fondo = document.getElementById('carruselFondoShow');
+            if (!fondo) return;
+
+            fondo.style.backgroundImage = `url('${listaFotosBanner[0]}')`;
+            if (intervaloCarrusel) clearInterval(intervaloCarrusel);
+            
+            intervaloCarrusel = setInterval(() => {
+                indiceFotoActual = (indiceFotoActual + 1) % listaFotosBanner.length;
+                fondo.style.backgroundImage = `url('${listaFotosBanner[indiceFotoActual]}')`;
+            }, 5000);
         }
 
-        function iniciarLoopEsperaInfinito() {
-            if (retornoTimeout) clearTimeout(retornoTimeout);
-            if (loopInterval) clearInterval(loopInterval);
-            enviarComandoYouTube('seekTo', [0, true]);
-            enviarComandoYouTube('playVideo', []);
-            loopInterval = setInterval(() => {
-                enviarComandoYouTube('seekTo', [0, true]);
-                enviarComandoYouTube('playVideo', []);
-            }, 14000);
+        function extraerIdYouTube(url) {
+            if (!url) return "";
+            let videoId = "";
+            if (url.includes("watch?v=")) videoId = url.split("watch?v=")[1].split("&")[0];
+            else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0].split("&")[0];
+            else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0].split("&")[0];
+            else videoId = url.trim();
+            return videoId;
         }
 
-        function reproducirClipCompilado(numeroCancion) {
-            const num = Number(numeroCancion);
-            if (!num || num < 1 || num > 60) return;
-            if (loopInterval) clearInterval(loopInterval);
-            if (retornoTimeout) clearTimeout(retornoTimeout);
-            const segundoInicio = 20 + (num - 1) * 20;
-            enviarComandoYouTube('seekTo', [segundoInicio, true]);
-            enviarComandoYouTube('playVideo', []);
-            retornoTimeout = setTimeout(() => { iniciarLoopEsperaInfinito(); }, 20000);
+        function obtenerDatosCancion(num) {
+            let n = parseInt(num, 10);
+            let clave3D = String(n).padStart(3, '0');
+            return temasDelRepertorioActivo[clave3D] || temasDelRepertorioActivo[String(n)] || {};
         }
 
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
+            const overlayVisual = document.getElementById('overlayVisualAudio');
+            const lblNum = document.getElementById('lblNumeroShow');
+            const lblTema = document.getElementById('lblTemaShow');
             if (!iframe) return;
-            const num = Number(ultimaCancionCantada);
 
             if (modoTransmisionActual === "vivo") {
-                if (loopInterval) clearInterval(loopInterval);
-                if (retornoTimeout) clearTimeout(retornoTimeout);
+                if (overlayVisual) overlayVisual.style.display = "none";
                 if (linkVivo && linkVivo !== urlStreamActualCargada) {
-                    let videoId = linkVivo;
-                    if (linkVivo.includes("watch?v=")) videoId = linkVivo.split("watch?v=")[1].split("&")[0];
-                    else if (linkVivo.includes("youtu.be/")) videoId = linkVivo.split("youtu.be/")[1].split("?")[0];
+                    let videoId = extraerIdYouTube(linkVivo);
                     iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`;
                     urlStreamActualCargada = linkVivo;
                 }
-            } else {
-                if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
-                    if (ultimaCancionTocadaProcesada !== num) {
-                        ultimaCancionTocadaProcesada = num;
-                        reproducirClipCompilado(num);
-                    }
-                } else if (num === 999) {
-                    if (loopInterval) clearInterval(loopInterval);
-                    if (retornoTimeout) clearTimeout(retornoTimeout);
-                    enviarComandoYouTube('seekTo', [1220, true]); 
-                    enviarComandoYouTube('playVideo', []);
-                } else {
-                    if (!loopInterval) iniciarLoopEsperaInfinito();
+                return;
+            }
+
+            const num = Number(ultimaCancionCantada);
+
+            if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
+                let datosTema = obtenerDatosCancion(num);
+                let urlYoutube = datosTema.url_youtube || "";
+                let nombreTema = datosTema.nombre || `Canción #${String(num).padStart(2, '0')}`;
+                let idVideo = extraerIdYouTube(urlYoutube);
+
+                if (overlayVisual && lblNum) {
+                    lblNum.innerText = String(num).padStart(2, '0');
+                    if (lblTema) lblTema.innerText = nombreTema;
+                    overlayVisual.style.display = "flex";
                 }
+
+                if (ultimaCancionTocadaProcesada !== num && idVideo) {
+                    ultimaCancionTocadaProcesada = num;
+                    iframe.src = `https://www.youtube.com/embed/${idVideo}?enablejsapi=1&autoplay=1&playsinline=1`;
+                }
+            } else {
+                if (overlayVisual) overlayVisual.style.display = "none";
             }
         }
 
@@ -276,7 +286,7 @@
             document.getElementById('cajaLogin').style.display = "block";
         };
 
-        // VARIABLES DE JUEGO
+        // VARIABLES Y LÓGICA DE JUEGO
         let nroCartonAsignado = null;
         let misNumeros = [];
         let numerosSalidos = [];
@@ -327,9 +337,36 @@
             }
         }
 
+        async function cargarCancionesDeRepertorio(idRep) {
+            temasDelRepertorioActivo = {};
+            try {
+                const subColSnap = await getDocs(collection(db, "repertorios", idRep, "canciones"));
+                if (!subColSnap.empty) {
+                    subColSnap.forEach(d => {
+                        let numLimpio = parseInt(d.id, 10);
+                        temasDelRepertorioActivo[String(numLimpio)] = d.data();
+                        temasDelRepertorioActivo[d.id] = d.data();
+                    });
+                    return;
+                }
+
+                const docSnap = await getDoc(doc(db, "repertorios", idRep));
+                if (docSnap.exists()) {
+                    let data = docSnap.data();
+                    if (data.canciones && typeof data.canciones === 'object') {
+                        Object.keys(data.canciones).forEach(k => {
+                            let numLimpio = parseInt(k, 10);
+                            temasDelRepertorioActivo[String(numLimpio)] = data.canciones[k];
+                            temasDelRepertorioActivo[k] = data.canciones[k];
+                        });
+                    }
+                }
+            } catch(e) { console.error("Error cargando canciones:", e); }
+        }
+
         async function cargarConfiguracionInicialShow() {
             try {
-                let idRepertorioAUsar = "dolores"; 
+                let idRepertorioAUsar = "lista_prueba"; 
                 let linkStreamEncontrado = "";
 
                 const snapEstado = await getDoc(doc(db, "estado_show", "actual"));
@@ -341,16 +378,13 @@
                     if (datosEstado.link_stream) linkStreamEncontrado = datosEstado.link_stream;
                     if (datosEstado.precio_carton) precioEntradaShow = Number(datosEstado.precio_carton);
                     if (datosEstado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
-                    numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(String);
+                    if (datosEstado.fotos_banner) iniciarCarruselFotos(datosEstado.fotos_banner);
+                    numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     actualizarBannerAvisoFlash(datosEstado.aviso_flash);
                 }
 
+                await cargarCancionesDeRepertorio(idRepertorioAUsar);
                 gestionarReproductorSegunModo(linkStreamEncontrado, null);
-
-                const repSnap = await getDoc(doc(db, "repertorios", idRepertorioAUsar));
-                if (repSnap.exists()) {
-                    temasDelRepertorioActivo = repSnap.data().canciones || {};
-                }
                 
                 aplicarBloqueoPreShowEstricto();
                 actualizarSelectorCancionesDinamico();
@@ -405,16 +439,16 @@
                     const estado = docSnap.data();
                     showEnVivoHabilitado = (estado.show_iniciado === true);
                     modoTransmisionActual = estado.modo_transmision || "automatico";
-                    numerosSalidos = (estado.lista_numeros_salidos || []).map(String);
+                    numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
                     if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
+                    if (estado.fotos_banner) iniciarCarruselFotos(estado.fotos_banner);
                     
                     actualizarBannerAvisoFlash(estado.aviso_flash);
 
-                    let idRepertorio = estado.repertorio_activo;
-                    if (idRepertorio && (!temasDelRepertorioActivo || Object.keys(temasDelRepertorioActivo).length === 0)) {
-                        const repSnap = await getDoc(doc(db, "repertorios", idRepertorio));
-                        if (repSnap.exists()) temasDelRepertorioActivo = repSnap.data().canciones || {};
+                    let idRepertorio = estado.repertorio_activo || "lista_prueba";
+                    if (idRepertorio && Object.keys(temasDelRepertorioActivo).length === 0) {
+                        await cargarCancionesDeRepertorio(idRepertorio);
                     }
                     
                     gestionarReproductorSegunModo(estado.link_stream, estado.ultima_cancion_tocada);
@@ -465,7 +499,9 @@
         try {
             onSnapshot(collection(db, "pedidos_espera"), (snapshot) => {
                 cancionesEnEsperaEscenario = []; totalTemasEnCola = snapshot.size || 0;
-                snapshot.forEach(doc => { if (doc.data().codigo) cancionesEnEsperaEscenario.push(String(doc.data().codigo)); });
+                snapshot.forEach(doc => { 
+                    if (doc.data().codigo) cancionesEnEsperaEscenario.push(String(parseInt(doc.data().codigo, 10))); 
+                });
                 actualizarSelectorCancionesDinamico();
             });
         } catch(e) {}
@@ -474,18 +510,22 @@
             const select = document.getElementById('selectCanciones'); if (!select) return;
             const valorPrevio = select.value; select.innerHTML = '<option value="">-- Elegir Tema --</option>';
             let listaFormateada = [];
-            Object.keys(temasDelRepertorioActivo).forEach(cod => { 
-                let itemData = temasDelRepertorioActivo[cod];
-                let nombrePuro = (typeof itemData === 'object' && itemData !== null) ? itemData.nombre : itemData;
-                listaFormateada.push({ codigo: String(cod), nombreTema: nombrePuro || `Tema ${cod}` }); 
-            });
-            listaFormateada.sort((a, b) => a.nombreTema.localeCompare(b.nombreTema));
+            
+            for (let i = 1; i <= 60; i++) {
+                let datos = obtenerDatosCancion(i);
+                if (datos && datos.nombre) {
+                    let nombreLimpio = String(datos.nombre).replace(/^\d+[\s-:=]*/, '');
+                    listaFormateada.push({ codigo: String(i), nombreTema: `#${String(i).padStart(2, '0')} - ${nombreLimpio}` });
+                }
+            }
+
             listaFormateada.forEach(item => {
                 let option = document.createElement('option'); option.value = item.codigo;
-                let nombreLimpio = item.nombreTema.replace(/^\d+[\s-:=]*/, '');
                 if (cancionesEnEsperaEscenario.includes(item.codigo) || numerosSalidos.includes(item.codigo)) {
-                    option.innerText = `❌ ${nombreLimpio}`; option.disabled = true; option.style.color = "#ff4d4d";
-                } else { option.innerText = nombreLimpio; }
+                    option.innerText = `❌ ${item.nombreTema}`; option.disabled = true; option.style.color = "#ff4d4d";
+                } else { 
+                    option.innerText = item.nombreTema; 
+                }
                 select.appendChild(option);
             });
             if (valorPrevio && !cancionesEnEsperaEscenario.includes(String(valorPrevio)) && !numerosSalidos.includes(String(valorPrevio))) { select.value = valorPrevio; }
@@ -510,7 +550,10 @@
                 return;
             }
 
-            let cancionesConTriviaPendiente = numerosSalidos.filter(num => !triviasRespondidasIds.includes(num) && temasDelRepertorioActivo[num] && temasDelRepertorioActivo[num].pregunta);
+            let cancionesConTriviaPendiente = numerosSalidos.filter(num => {
+                let d = obtenerDatosCancion(num);
+                return !triviasRespondidasIds.includes(String(num)) && d && d.pregunta;
+            });
 
             if (badgeTrivia) {
                 if (cancionesConTriviaPendiente.length > 0) {
@@ -525,7 +568,7 @@
 
             let htmlTrivias = "";
             cancionesConTriviaPendiente.forEach((codTema) => {
-                let datosTema = temasDelRepertorioActivo[codTema];
+                let datosTema = obtenerDatosCancion(codTema);
                 let nombreLimpio = String(datosTema.nombre || `Tema ${codTema}`).replace(/^\d+[\s-:=]*/, '');
                 let opA = datosTema.opcion_a || ""; let opB = datosTema.opcion_b || ""; let correctaVal = datosTema.correcta || "";
                 let opciones = mezclarArreglo([opA, opB, correctaVal].filter(Boolean));
@@ -548,8 +591,8 @@
         }
 
         window.responderTriviaBandeja = async function(codTema, seleccionada, correcta) {
-            if (!showEnVivoHabilitado || triviasRespondidasIds.includes(codTema)) return;
-            triviasRespondidasIds.push(codTema);
+            if (!showEnVivoHabilitado || triviasRespondidasIds.includes(String(codTema))) return;
+            triviasRespondidasIds.push(String(codTema));
             let esCorrecta = (seleccionada.trim().toLowerCase() === correcta.trim().toLowerCase());
 
             if (esCorrecta) {
@@ -575,14 +618,9 @@
             document.getElementById('cajaCargando').style.display = "block";
             document.getElementById('cajaCargando').innerHTML = "<p>Cargando tu sala de juego...</p>";
 
-            let codigosDisponibles = Object.keys(temasDelRepertorioActivo).length > 0 ? Object.keys(temasDelRepertorioActivo).map(String) : [];
-            if (codigosDisponibles.length === 0) {
-                tamañoCartonDinamico = 9;
-                for(let i=1; i<=9; i++) codigosDisponibles.push(String(i));
-                temasDelRepertorioActivo = {"1":{"nombre":"T1"},"2":{"nombre":"T2"},"3":{"nombre":"T3"},"4":{"nombre":"T4"},"5":{"nombre":"T5"},"6":{"nombre":"T6"},"7":{"nombre":"T7"},"8":{"nombre":"T8"},"9":{"nombre":"T9"}};
-            } else {
-                tamañoCartonDinamico = (codigosDisponibles.length < 30) ? 9 : 15;
-            }
+            let codigosDisponibles = [];
+            for(let i = 1; i <= 60; i++) codigosDisponibles.push(String(i));
+            tamañoCartonDinamico = 9;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
@@ -618,14 +656,14 @@
 
         function asignarEIniciarCarton(data) {
             nroCartonAsignado = data.nro_carton; 
-            misNumeros = (data.numeros || []).map(String);
-            marcadosManualmente = (data.marcados_manuales || []).map(String);
+            misNumeros = (data.numeros || []).map(n => String(parseInt(n, 10)));
+            marcadosManualmente = (data.marcados_manuales || []).map(n => String(parseInt(n, 10)));
             misFiguritasColeccionadas = (data.album_pegadas || []).map(Number);
             misFiguritasDoradas = (data.album_doradas || []).map(Number);
             misRepetidas = (data.repetidas || []).map(Number);
             sobresPendientesParaAbrir = data.sobres_pendientes || 0;
             puntosTriviaJugador = data.puntos || 0;
-            triviasRespondidasIds = (data.trivias_respondidas || []).map(String);
+            triviasRespondidasIds = (data.trivias_respondidas || []).map(n => String(parseInt(n, 10)));
             yaReclameBolaLoca = data.bola_loca_reclamada || false;
             yaCanteLinea = data.linea_reclamada || false;
             if(data.modalidad) modalidadElegida = data.modalidad;
@@ -651,7 +689,6 @@
             iniciarEscuchaChat();
             renderizarMisRepetidas();
             iniciarEscuchaSalaCambios();
-            iniciarLoopEsperaInfinito();
             
             iniciarTour();
 
@@ -663,7 +700,7 @@
                     misRepetidas = (d.repetidas || []).map(Number);
                     sobresPendientesParaAbrir = d.sobres_pendientes || 0;
                     puntosTriviaJugador = d.puntos || 0;
-                    triviasRespondidasIds = (d.trivias_respondidas || []).map(String);
+                    triviasRespondidasIds = (d.trivias_respondidas || []).map(n => String(parseInt(n, 10)));
                     yaReclameBolaLoca = d.bola_loca_reclamada || false;
                     yaCanteLinea = d.linea_reclamada || false;
                     document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
@@ -683,13 +720,14 @@
 
         window.tocarCasilleroManual = async function(numStr) {
             if (!modoManualActivo) return;
-            if (marcadosManualmente.includes(numStr)) { marcadosManualmente = marcadosManualmente.filter(n => n !== numStr); }
-            else { marcadosManualmente.push(numStr); }
+            let n = String(parseInt(numStr, 10));
+            if (marcadosManualmente.includes(n)) { marcadosManualmente = marcadosManualmente.filter(item => item !== n); }
+            else { marcadosManualmente.push(n); }
             try { await updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), { marcados_manuales: marcadosManualmente }); } catch(e) {}
             renderizarMatrizNumerosYVerificarPremios({lista_numeros_salidos: numerosSalidos});
         };
 
-        // IMPRESIÓN PROLIJA
+        // IMPRESIÓN DEL CARTÓN (2 CIFRAS)
         window.imprimirCartonPapel = function() {
             let nombreUser = infoUsuarioLogueado.nombre || "Participante";
             let nroCartonTxt = String(nroCartonAsignado || "000").padStart(3, '0');
@@ -709,7 +747,7 @@
                         h1 { font-size: 1.6rem; text-transform: uppercase; margin: 0 0 5px 0; }
                         .sub { font-size: 0.9rem; color: #555; margin-bottom: 15px; }
                         .info-box { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; }
-                        .grilla-impresion { display: grid; grid-template-columns: repeat(${tamañoCartonDinamico === 9 ? 3 : 5}, 1fr); gap: 15px; }
+                        .grilla-impresion { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
                         .casillero-impresion { border: 3px solid #000; border-radius: 10px; aspect-ratio: 1.2; display: flex; align-items: center; justify-content: center; background: #fdfdfd; }
                         .nro { font-size: 2.5rem; font-weight: 900; color: #000; }
                         .footer { margin-top: 25px; font-size: 0.85rem; color: #333; border-top: 1px dashed #000; padding-top: 10px; font-weight: bold; }
@@ -750,19 +788,22 @@
             ventanaImpresion.document.close();
         };
 
+        // MATRIZ DE NÚMEROS (2 CIFRAS)
         function renderizarMatrizNumerosYVerificarPremios(estadoGlobal) {
             const contenedor = document.getElementById('grillaNumerosBingo'); 
             if (!contenedor) return;
             contenedor.innerHTML = "";
-            contenedor.style.gridTemplateColumns = tamañoCartonDinamico === 9 ? "repeat(3, 1fr)" : "repeat(5, 1fr)";
-            let aciertosReales = 0, aciertosF1 = 0, aciertosF2 = 0, aciertosF3 = 0;
+            contenedor.style.gridTemplateColumns = "repeat(3, 1fr)";
+            let aciertosReales = 0;
             
             misNumeros.forEach((num) => {
                 const boton = document.createElement('div'); boton.classList.add('casillero-bola'); 
-                let itemData = temasDelRepertorioActivo[num] || {};
-                let nombreTemaOriginal = (typeof itemData === 'object' && itemData !== null) ? itemData.nombre : itemData;
-                let nombreLimpioCorto = String(nombreTemaOriginal || num).replace(/^\d+[\s-:=]*/, '');
-                boton.innerText = String(num).padStart(2, '0'); boton.title = nombreLimpioCorto;
+                let itemData = obtenerDatosCancion(num);
+                let nombreTemaOriginal = itemData.nombre || num;
+                let nombreLimpioCorto = String(nombreTemaOriginal).replace(/^\d+[\s-:=]*/, '');
+                
+                boton.innerText = String(num).padStart(2, '0'); 
+                boton.title = nombreLimpioCorto;
 
                 let estaSalidoEnEscenario = numerosSalidos.includes(String(num));
                 let estaMarcadoPorUsuario = marcadosManualmente.includes(String(num));
@@ -775,12 +816,7 @@
                     if (estaSalidoEnEscenario) boton.classList.add('marcada-correcta');
                 }
 
-                if (estaSalidoEnEscenario) {
-                    aciertosReales++;
-                    if (fila1.includes(num)) aciertosF1++;
-                    if (fila2.includes(num)) aciertosF2++;
-                    if (fila3.includes(num)) aciertosF3++;
-                }
+                if (estaSalidoEnEscenario) aciertosReales++;
                 contenedor.appendChild(boton);
             });
             
@@ -789,7 +825,7 @@
             let numeroClaveBolaLoca = parseInt(String(estadoGlobal.numero_clave_noche || "-999").replace(/\D/g, ''), 10);
             
             let esNumeroBolaLoca = (numeroClaveBolaLoca > 0 && ultimoNumeroCantado === numeroClaveBolaLoca);
-            let tengoBolaLocaEnCarton = misNumeros.includes(String(numeroClaveBolaLoca)) || misNumeros.includes(String(numeroClaveBolaLoca).padStart(2, '0'));
+            let tengoBolaLocaEnCarton = misNumeros.includes(String(numeroClaveBolaLoca));
 
             if (esNumeroBolaLoca && tengoBolaLocaEnCarton && !yaReclameBolaLoca) {
                 yaReclameBolaLoca = true;
@@ -905,7 +941,6 @@
             if (!showEnVivoHabilitado) { alert("Los sobres se abren durante el show en vivo."); return; }
             if (sobresPendientesParaAbrir <= 0) return;
             sobresPendientesParaAbrir--;
-            let totalDisponiblesRepertorio = Object.keys(temasDelRepertorioActivo).length || 60;
             let sobreAbierto = []; 
             let ganoFiguritaUltraOro001 = false;
 
@@ -913,13 +948,11 @@
                 let idAleatorio;
                 if (Math.random() < 0.03) {
                     idAleatorio = Math.floor(Math.random() * 6) + 55;
-                    if (idAleatorio > totalDisponiblesRepertorio) idAleatorio = totalDisponiblesRepertorio;
                 } else {
                     idAleatorio = Math.floor(Math.random() * 54) + 1;
                 }
 
                 let esDorada = (idAleatorio >= 55);
-
                 if (idAleatorio === 1 && Math.random() < 0.005) ganoFiguritaUltraOro001 = true;
 
                 if (esDorada) {
@@ -940,7 +973,7 @@
                 }
             }
 
-            let albumLleno = misFiguritasColeccionadas.length >= totalDisponiblesRepertorio && totalDisponiblesRepertorio > 0;
+            let albumLleno = misFiguritasColeccionadas.length >= 60;
 
             try {
                 let updateData = { 
@@ -963,7 +996,7 @@
                 dispararEspamentoDorado();
             } else if (ganoFiguritaUltraOro001) { 
                 cajaPremioEspecial.style.display = "block"; 
-                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA #001 DE ORO ULTRA-RARA! Pase Libre Ganado 🎁</p>`;
+                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA #01 DE ORO ULTRA-RARA! Pase Libre Ganado 🎁</p>`;
                 dispararEspamentoDorado(); 
             } else { 
                 cajaPremioEspecial.style.display = "none"; 
@@ -990,18 +1023,15 @@
             }
         }
 
-        // ==========================================
-        // 📘 RENDERIZADO VISUAL DEL ÁLBUM BLINDADO
-        // ==========================================
+        // ÁLBUM DE FIGURITAS (2 CIFRAS)
         function renderizarPaginaAlbum() {
             const grilla = document.getElementById('grillaAlbumFiguritas'); const lblPagina = document.getElementById('lblPaginaActual');
             const lblProgreso = document.getElementById('lblProgresoAlbum'); const bloquePuntosBanner = document.getElementById('bloqueBotonCanje');
             if(!grilla) return;
-            let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
-            let pegadasCantidad = misFiguritasColeccionadas.length; let faltantes = Math.max(0, totalDisponibles - pegadasCantidad);
-            if (lblProgreso) lblProgreso.innerText = `Pegadas: ${pegadasCantidad} / ${totalDisponibles} (Faltan ${faltantes})`;
+            let pegadasCantidad = misFiguritasColeccionadas.length; let faltantes = Math.max(0, 60 - pegadasCantidad);
+            if (lblProgreso) lblProgreso.innerText = `Pegadas: ${pegadasCantidad} / 60 (Faltan ${faltantes})`;
             if (bloquePuntosBanner) {
-                if (pegadasCantidad >= totalDisponibles && totalDisponibles > 0) {
+                if (pegadasCantidad >= 60) {
                     bloquePuntosBanner.classList.add('album-completo-titilar'); document.getElementById('lblSubCanjeTag').innerText = "👑 ¡ÁLBUM LLENO!";
                 } else {
                     bloquePuntosBanner.classList.remove('album-completo-titilar'); document.getElementById('lblSubCanjeTag').innerText = "🎁 Ver Premios";
@@ -1017,13 +1047,8 @@
                 let item = document.createElement('div'), claseEstado = 'bloqueada';
                 if (tieneFigurita) claseEstado = esDorada ? 'desbloqueada-gold' : 'desbloqueada';
                 item.className = `item-figurita ${claseEstado}`;
-                let datosCancionVinculada = temasDelRepertorioActivo[String(idFigurita)];
                 
-                if (!datosCancionVinculada) {
-                    item.innerHTML = `<div class="fig-numero">#${String(idFigurita).padStart(2, '0')}</div><div class="fig-img-placeholder" style="color:#334155;">#${String(idFigurita).padStart(2, '0')}</div>`;
-                    grilla.appendChild(item); continue;
-                }
-
+                let datosCancionVinculada = obtenerDatosCancion(idFigurita);
                 let urlImagen = (esDorada && datosCancionVinculada.url_fig_gold) ? datosCancionVinculada.url_fig_gold : (datosCancionVinculada.url_fig || "");
                 let nombreTemaLimpio = String(datosCancionVinculada.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
@@ -1033,7 +1058,7 @@
                     let badgeGold = esDorada ? `<span class="badge-gold-tag">👑 ORO</span>` : "";
                     
                     let htmlImg = (urlImagen && urlImagen.startsWith("http")) 
-                        ? `<img src="${urlImagen}" alt="#${idFigurita}">` 
+                        ? `<img src="${urlImagen}" alt="#${String(idFigurita).padStart(2, '0')}">` 
                         : `<span style="color:var(--neon-cyan); font-weight:bold; font-size:1.1rem;">#${String(idFigurita).padStart(2, '0')}</span>`;
                     
                     item.innerHTML = `<div class="fig-header-flex"><span class="fig-numero">#${String(idFigurita).padStart(2, '0')}</span>${badgeGold}</div><div class="fig-img-placeholder">${htmlImg}</div>`;
@@ -1074,11 +1099,10 @@
         }
 
         window.canjearDoradaRepetidaPorTres = async function(idFigurita) {
-            if (!confirm(`¿Querés quemar tu figurita dorada repetida #${idFigurita} a cambio de 3 figuritas normales nuevas para tu álbum?`)) return;
+            if (!confirm(`¿Querés quemar tu figurita dorada repetida #${String(idFigurita).padStart(2,'0')} a cambio de 3 figuritas normales nuevas para tu álbum?`)) return;
             let index = misRepetidas.indexOf(Number(idFigurita));
             if (index > -1) {
                 misRepetidas.splice(index, 1);
-                let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
                 let ganadas = 0, intentitos = 0;
                 while(ganadas < 3 && intentitos < 50) {
                     let randId = Math.floor(Math.random() * 54) + 1;
@@ -1090,7 +1114,7 @@
                 }
 
                 try {
-                    let albumLleno = misFiguritasColeccionadas.length >= totalDisponibles;
+                    let albumLleno = misFiguritasColeccionadas.length >= 60;
                     let updateData = { repetidas: misRepetidas, album_pegadas: misFiguritasColeccionadas };
                     if (albumLleno) updateData.pase_proximo_show_gratis = true;
                     await updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), updateData);
@@ -1140,9 +1164,8 @@
 
             let meSirven = [...new Set(susRepetidas.filter(id => !misFiguritasColeccionadas.includes(id)))];
             let leSirven = [...new Set(misRepetidas.filter(id => !susPegadas.includes(id)))];
-            let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
 
-            for(let i = 1; i <= totalDisponibles; i++) {
+            for(let i = 1; i <= 60; i++) {
                 let casillero = document.createElement('div');
                 let esFaltanteMioQueElTiene = meSirven.includes(i);
                 let esMioRepetidoQueElTiene = leSirven.includes(i);
@@ -1155,7 +1178,7 @@
 
             if (meSirven.length > 0 && leSirven.length > 0) {
                 let figQueDoy = leSirven[0], figQueRecibo = meSirven[0];
-                btnTrade.style.display = "block"; btnTrade.innerText = `🤝 ¡Cambiar #${figQueDoy} por #${figQueRecibo}!`;
+                btnTrade.style.display = "block"; btnTrade.innerText = `🤝 ¡Cambiar #${String(figQueDoy).padStart(2,'0')} por #${String(figQueRecibo).padStart(2,'0')}!`;
                 btnTrade.onclick = async function() {
                     btnTrade.disabled = true; btnTrade.innerText = "Procesando...";
                     await ejecutarTradeRealEnFirebase(dniOtro, nombreOtro, figQueDoy, figQueRecibo);
@@ -1183,7 +1206,7 @@
 
                 await updateDoc(miRef, { repetidas: nuevasRepetidasMias, album_pegadas: nuevasPegadasMias });
                 await updateDoc(otroRef, { repetidas: nuevasRepetidasSuyas, album_pegadas: nuevasPegadasSuyas });
-                alert(`🎉 ¡Trueque exitoso! Diste la #${figQueDoy} y pegaste la #${figQueRecibo}.`);
+                alert(`🎉 ¡Trueque exitoso! Diste la #${String(figQueDoy).padStart(2,'0')} y pegaste la #${String(figQueRecibo).padStart(2,'0')}.`);
             } catch(e) { alert("Error al procesar el intercambio."); }
         }
 
@@ -1212,8 +1235,7 @@
         function renderizarCatalogoCanjeDinamico() {
             const grilla = document.getElementById('grillaPremiosCanjeInterna'); const avisoEstado = document.getElementById('avisoEstadoTienda');
             if (!grilla) return;
-            let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
-            let albumCompletado = misFiguritasColeccionadas.length >= totalDisponibles;
+            let albumCompletado = misFiguritasColeccionadas.length >= 60;
 
             if (avisoEstado) {
                 avisoEstado.style.display = "block";
@@ -1265,8 +1287,7 @@
 
         let premioSeleccionado = null;
         window.iniciarProcesoCanjeDinamico = function(id, titulo, puntos) {
-            let totalDisponibles = Object.keys(temasDelRepertorioActivo).length || 60;
-            if (misFiguritasColeccionadas.length < totalDisponibles) { alert("Tenés que completar el álbum primero."); return; }
+            if (misFiguritasColeccionadas.length < 60) { alert("Tenés que completar el álbum primero."); return; }
             if (showEnVivoHabilitado) { alert("Los canjes se habilitan al finalizar el show."); return; }
             premioSeleccionado = { id, titulo, puntos };
             if (puntosTriviaJugador < puntos) { alert("No tenés suficientes puntos."); return; }
@@ -1326,6 +1347,46 @@
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
         
+        /* CUBIERTA VISUAL CON CARRUSEL DE FOTOS ROTATIVAS */
+        .overlay-visual-audio {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10; overflow: hidden;
+        }
+
+        .carrusel-fondo {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            transition: background-image 0.8s ease-in-out;
+            z-index: 1;
+        }
+
+        .sombra-oscura-carrusel {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 14, 23, 0.72);
+            z-index: 2;
+        }
+
+        .disco-animado {
+            width: 85px; height: 85px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffd166, #d4a373 60%, #b07d62 100%);
+            border: 3px solid #fff; box-shadow: 0 0 25px rgba(255,209,102,0.8);
+            display: flex; align-items: center; justify-content: center;
+            animation: girarDisco 4s linear infinite;
+            position: relative; z-index: 5;
+        }
+        .disco-animado span { font-size: 2.2rem; font-weight: 900; color: #000; text-shadow: 1px 1px 2px rgba(255,255,255,0.6); }
+        @keyframes girarDisco { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .lbl-tema-flotante {
+            position: relative; z-index: 5;
+            font-weight: bold; color: var(--neon-cyan);
+            margin-top: 10px; font-size: 0.95rem; text-align: center;
+            background: rgba(0, 0, 0, 0.75); padding: 4px 14px;
+            border-radius: 20px; border: 1px solid rgba(0, 245, 212, 0.4);
+            text-shadow: 0 0 8px rgba(0,245,212,0.8);
+        }
+
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -1337,7 +1398,6 @@
         .fig-numero { font-size: 0.75rem; color: var(--gold); font-weight: bold; }
         .badge-gold-tag { font-size: 0.65rem; background: var(--gold); color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; }
         
-        /* CONTENEDOR DE FIGURITAS CON POSICIÓN BLINDADA */
         .fig-img-placeholder { width: 100%; height: 95px; background: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #2a3f64; position: relative; }
         .fig-img-placeholder img { width: 100%; height: 100%; object-fit: contain; display: block; position: absolute; top: 0; left: 0; }
         
@@ -1506,10 +1566,22 @@
 
         <!-- VISTA 1: BINGO -->
         <div id="vistaBingo">
-            <div class="card-caja">
-                <h2>📺 Transmisión Oficial</h2>
-                <div class="video-container-simple">
-                    <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            <div class="card-caja" style="position: relative;">
+                <h2>🎵 Música Oficial del Show</h2>
+                <div class="video-container-simple" style="position: relative;">
+                    <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    
+                    <!-- CUBIERTA VISUAL CON CARRUSEL DE FOTOS ROTATIVAS -->
+                    <div id="overlayVisualAudio" class="overlay-visual-audio" style="display: none;">
+                        <div id="carruselFondoShow" class="carrusel-fondo"></div>
+                        <div class="sombra-oscura-carrusel"></div>
+                        
+                        <div class="disco-animado">
+                            <span id="lblNumeroShow">00</span>
+                        </div>
+                        <div id="lblTemaShow" class="lbl-tema-flotante">...</div>
+                        <small style="color: #cbd5e1; margin-top: 4px; z-index: 5; text-shadow: 1px 1px 3px #000;">🔊 Reproduciendo audio en vivo</small>
+                    </div>
                 </div>
             </div>
 
