@@ -297,7 +297,7 @@
         let temasDelRepertorioActivo = {}; 
         let cancionesEnEsperaEscenario = [];
         let totalTemasEnCola = 0;
-        let tamañoCartonDinamico = 9;
+        let tamañoCartonDinamico = 15;
         let yaCanteLinea = false; 
         let yaCanteBingo = false;
         let yaReclameBolaLoca = false;
@@ -441,7 +441,7 @@
                     modoTransmisionActual = estado.modo_transmision || "automatico";
                     numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
-                    if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
+                    if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
                     if (estado.fotos_banner) iniciarCarruselFotos(estado.fotos_banner);
                     
                     actualizarBannerAvisoFlash(estado.aviso_flash);
@@ -614,13 +614,19 @@
             renderizarBandejaTrivias(); renderizarCatalogoCanjeDinamico(); actualizarIndicadorSobres();
         };
 
+        // GENERACIÓN DEL CARTÓN OFICIAL (15 NÚMEROS APASADOS)
         async function generarYMostrarCartonFinal(nombre, dniOriginal) {
             document.getElementById('cajaCargando').style.display = "block";
             document.getElementById('cajaCargando').innerHTML = "<p>Cargando tu sala de juego...</p>";
 
             let codigosDisponibles = [];
-            for(let i = 1; i <= 60; i++) codigosDisponibles.push(String(i));
-            tamañoCartonDinamico = 9;
+            let totalCancionesRepertorio = Object.keys(temasDelRepertorioActivo).length;
+            let maxTotal = totalCancionesRepertorio > 0 ? totalCancionesRepertorio : 60;
+            
+            for(let i = 1; i <= maxTotal; i++) codigosDisponibles.push(String(i));
+            
+            // 15 números para formato oficial apaisado
+            tamañoCartonDinamico = 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
@@ -668,8 +674,11 @@
             yaCanteLinea = data.linea_reclamada || false;
             if(data.modalidad) modalidadElegida = data.modalidad;
 
-            tamañoCartonDinamico = misNumeros.length; let tamFila = Math.floor(misNumeros.length / 3);
-            fila1 = misNumeros.slice(0, tamFila); fila2 = misNumeros.slice(tamFila, tamFila * 2); fila3 = misNumeros.slice(tamFila * 2);
+            tamañoCartonDinamico = misNumeros.length; 
+            let tamFila = Math.floor(misNumeros.length / 3);
+            fila1 = misNumeros.slice(0, tamFila); 
+            fila2 = misNumeros.slice(tamFila, tamFila * 2); 
+            fila3 = misNumeros.slice(tamFila * 2);
             
             document.getElementById('cajaCargando').style.display = "none";
             document.getElementById('cajaNoHabilitado').style.display = "none";
@@ -727,10 +736,11 @@
             renderizarMatrizNumerosYVerificarPremios({lista_numeros_salidos: numerosSalidos});
         };
 
-        // IMPRESIÓN DEL CARTÓN (2 CIFRAS)
+        // IMPRESIÓN DEL CARTÓN EN APAISADO (15 NÚMEROS - 5 COLUMNAS)
         window.imprimirCartonPapel = function() {
             let nombreUser = infoUsuarioLogueado.nombre || "Participante";
             let nroCartonTxt = String(nroCartonAsignado || "000").padStart(3, '0');
+            let columnasImpresion = (tamañoCartonDinamico === 15) ? 5 : 3;
             
             let ventanaImpresion = window.open('', '_blank', 'width=800,height=600');
             let htmlContenido = `
@@ -740,17 +750,17 @@
                     <meta charset="UTF-8">
                     <title>Cartón #${nroCartonTxt} - Family Game Show</title>
                     <style>
-                        @page { size: A4 landscape; margin: 15mm; }
+                        @page { size: A4 landscape; margin: 12mm; }
                         * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
                         body { background: #fff; color: #000; text-align: center; padding: 10px; margin: 0; }
-                        .tarjeta-impresion { border: 3px solid #000; border-radius: 12px; padding: 25px; max-width: 650px; margin: 0 auto; background: #fff; }
-                        h1 { font-size: 1.6rem; text-transform: uppercase; margin: 0 0 5px 0; }
-                        .sub { font-size: 0.9rem; color: #555; margin-bottom: 15px; }
-                        .info-box { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; }
-                        .grilla-impresion { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-                        .casillero-impresion { border: 3px solid #000; border-radius: 10px; aspect-ratio: 1.2; display: flex; align-items: center; justify-content: center; background: #fdfdfd; }
-                        .nro { font-size: 2.5rem; font-weight: 900; color: #000; }
-                        .footer { margin-top: 25px; font-size: 0.85rem; color: #333; border-top: 1px dashed #000; padding-top: 10px; font-weight: bold; }
+                        .tarjeta-impresion { border: 3px solid #000; border-radius: 12px; padding: 20px; max-width: 720px; margin: 0 auto; background: #fff; }
+                        h1 { font-size: 1.6rem; text-transform: uppercase; margin: 0 0 4px 0; }
+                        .sub { font-size: 0.9rem; color: #555; margin-bottom: 12px; }
+                        .info-box { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px; font-size: 1.1rem; font-weight: bold; }
+                        .grilla-impresion { display: grid; grid-template-columns: repeat(${columnasImpresion}, 1fr); gap: 10px; }
+                        .casillero-impresion { border: 2.5px solid #000; border-radius: 8px; aspect-ratio: 1.25; display: flex; align-items: center; justify-content: center; background: #fdfdfd; }
+                        .nro { font-size: 2.3rem; font-weight: 900; color: #000; }
+                        .footer { margin-top: 18px; font-size: 0.85rem; color: #333; border-top: 1px dashed #000; padding-top: 8px; font-weight: bold; }
                     </style>
                 </head>
                 <body>
@@ -788,12 +798,14 @@
             ventanaImpresion.document.close();
         };
 
-        // MATRIZ DE NÚMEROS (2 CIFRAS)
+        // MATRIZ DE NÚMEROS (5 COLUMNAS PARA 15 NÚMEROS)
         function renderizarMatrizNumerosYVerificarPremios(estadoGlobal) {
             const contenedor = document.getElementById('grillaNumerosBingo'); 
             if (!contenedor) return;
             contenedor.innerHTML = "";
-            contenedor.style.gridTemplateColumns = "repeat(3, 1fr)";
+            
+            // Si son 15 números usamos 5 columnas (3 filas x 5 columnas apaisado)
+            contenedor.style.gridTemplateColumns = (tamañoCartonDinamico === 15) ? "repeat(5, 1fr)" : "repeat(3, 1fr)";
             let aciertosReales = 0;
             
             misNumeros.forEach((num) => {
@@ -1315,8 +1327,8 @@
         :root { --azul-fondo: #0a0e17; --tarjeta: #151f32; --neon-cyan: #00f5d4; --neon-rosa: #ff0055; --gold: #ffd166; --green: #25d366; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; color: #fff; }
         body { background: var(--azul-fondo); padding: 10px; width: 100%; overflow-x: hidden; }
-        .contenedor-centrado { max-width: 440px; margin: 0 auto; width: 100%; }
-        .card-caja { background: var(--tarjeta); padding: 16px; border-radius: 14px; border: 1px solid #24344f; margin-bottom: 12px; }
+        .contenedor-centrado { max-width: 480px; margin: 0 auto; width: 100%; }
+        .card-caja { background: var(--tarjeta); padding: 14px; border-radius: 14px; border: 1px solid #24344f; margin-bottom: 12px; }
         h1 { font-size: 1.3rem; text-align: center; color: var(--neon-cyan); text-transform: uppercase; margin-bottom: 18px; }
         h2 { font-size: 1rem; color: var(--neon-cyan); margin-bottom: 8px; text-transform: uppercase; }
         input, select { width: 100%; padding: 12px; background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; margin-bottom: 12px; font-size: 0.95rem; }
@@ -1339,8 +1351,10 @@
         .badge-notif { position: absolute; top: -5px; right: -5px; background: var(--neon-rosa); color: #fff; font-size: 0.65rem; padding: 2px 5px; border-radius: 50%; font-weight: bold; display: none; }
         .btn-modo-toggle { background: #1e2d4a; border: 1px solid var(--neon-cyan); color: #fff; padding: 8px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; width: 100%; text-align: center; }
         .btn-modo-toggle.activo { background: var(--neon-cyan); color: #000; }
-        .grilla-bingo-viva { display: grid; gap: 8px; margin: 10px 0; }
-        .casillero-bola { background: #1e2d4a; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; border-radius: 8px; border: 1px solid #2a3f64; }
+        
+        /* GRILLA APASADA DEL CARTÓN (5 COLUMNAS EN CELULAR) */
+        .grilla-bingo-viva { display: grid; gap: 6px; margin: 8px 0; }
+        .casillero-bola { background: #1e2d4a; aspect-ratio: 1.15; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 900; border-radius: 6px; border: 1.5px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
         
@@ -1585,15 +1599,16 @@
                 </div>
             </div>
 
-            <div class="card-caja" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 16px;">
+            <div class="card-caja" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 14px;">
                 <div><span style="font-weight: bold;">Mi Cartón</span> <span id="lblNroCartonBadge" style="background:var(--neon-cyan); color:#000; padding:2px 8px; border-radius:6px; font-weight:bold; margin-left:6px;">000</span></div>
                 <div style="display:flex; gap:6px;">
-                    <button id="btnImprimirCartonPapel" onclick="imprimirCartonPapel()" style="background:rgba(0,245,212,0.2); border:1px solid var(--neon-cyan); color:var(--neon-cyan); font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;" title="Imprimir cartón físico prolijo">🖨️ Imprimir</button>
+                    <button id="btnImprimirCartonPapel" onclick="imprimirCartonPapel()" style="background:rgba(0,245,212,0.2); border:1px solid var(--neon-cyan); color:var(--neon-cyan); font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;" title="Imprimir cartón físico apaisado">🖨️ Imprimir</button>
                     <button onclick="reiniciarTourManual()" style="background:rgba(255,209,102,0.2); border:1px solid var(--gold); color:var(--gold); font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;" title="Ver guía paso a paso">❓ Ayuda</button>
                     <button onclick="localStorage.removeItem('fgs_dni_sesion'); location.reload();" style="background:transparent; border:1px solid #334155; color:#94a3b8; font-size:0.7rem; padding:4px 8px; border-radius:6px; cursor:pointer;">🔄 Cambiar DNI</button>
                 </div>
             </div>
             
+            <!-- GRILLA APASADA (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
             <div class="card-caja">
                 <button class="btn-modo-toggle" id="btnToggleModoMarcado" onclick="toggleModoMarcado()">Modo: Automático ⚡ (Cambiar a Manual ✍️)</button>
                 <div class="grilla-bingo-viva" id="grillaNumerosBingo"></div>
