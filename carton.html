@@ -164,28 +164,46 @@
 
         function gestionarReproductorSegunModo(linkVivo, ultimaCancionCantada) {
             const iframe = document.getElementById('iframeStream');
+            const overlayBola = document.getElementById('overlayBolaEscenario');
+            const lblNum = document.getElementById('lblNumeroBolaShow');
+            const lblTema = document.getElementById('lblNombreTemaBolaShow');
             if (!iframe) return;
-            if (modoTransmisionActual === "vivo") {
-                if (loopInterval) clearInterval(loopInterval);
-                if (retornoTimeout) clearTimeout(retornoTimeout);
-                if (linkVivo && linkVivo !== urlStreamActualCargada) {
-                    let videoId = linkVivo;
-                    if (linkVivo.includes("watch?v=")) videoId = linkVivo.split("watch?v=")[1].split("&")[0];
-                    else if (linkVivo.includes("youtu.be/")) videoId = linkVivo.split("youtu.be/")[1].split("?")[0];
-                    iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`;
-                    urlStreamActualCargada = linkVivo;
+
+            const num = Number(ultimaCancionCantada);
+
+            if (num && num >= 1 && num <= 60) {
+                if (overlayBola && lblNum) {
+                    lblNum.innerText = `#${String(num).padStart(2, '0')}`;
+                    let itemData = temasDelRepertorioActivo[String(num)] || {};
+                    let nombreTema = (typeof itemData === 'object' && itemData !== null) ? itemData.nombre : itemData;
+                    if (lblTema) lblTema.innerText = nombreTema || `Canción #${num}`;
+                    overlayBola.style.display = "flex";
                 }
-            } else {
-                const num = Number(ultimaCancionCantada);
-                if (num === 999) {
-                    reproducirDespedidaFinal();
-                } else if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
+
+                if (modoTransmisionActual === "vivo") {
+                    if (loopInterval) clearInterval(loopInterval);
+                    if (retornoTimeout) clearTimeout(retornoTimeout);
+                    if (linkVivo && linkVivo !== urlStreamActualCargada) {
+                        let videoId = linkVivo;
+                        if (linkVivo.includes("watch?v=")) videoId = linkVivo.split("watch?v=")[1].split("&")[0];
+                        else if (linkVivo.includes("youtu.be/")) videoId = linkVivo.split("youtu.be/")[1].split("?")[0];
+                        iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`;
+                        urlStreamActualCargada = linkVivo;
+                    }
+                } else {
                     if (ultimaCancionTocadaProcesada !== num) {
                         ultimaCancionTocadaProcesada = num;
                         reproducirClipCompilado(num);
                     }
+                }
+            } else {
+                if (overlayBola) overlayBola.style.display = "none";
+                if (num === 999) {
+                    reproducirDespedidaFinal();
                 } else {
-                    if (!loopInterval) { iniciarLoopEsperaInfinito(); }
+                    if (!loopInterval && modoTransmisionActual !== "vivo") { 
+                        iniciarLoopEsperaInfinito(); 
+                    }
                 }
             }
         }
@@ -326,13 +344,17 @@
         let cancionesEnEsperaEscenario = [];
         let totalTemasEnCola = 0;
         let tamañoCartonDinamico = 9;
-        let yaCanteLinea = false; let yaCanteBingo = false;
+        let yaCanteLinea = false; 
+        let yaCanteBingo = false;
         let yaReclameBolaLoca = false;
         let fila1 = [], fila2 = [], fila3 = [];
 
+        let porcentajeGananciaOrganizador = 0.30;
         let precioEntradaShow = 3000;
         let totalPagadosContados = 0;
         let pozoTotalCalculado = 10000;
+        let pozoLinea1 = 2000;
+        let pozoLinea2 = 1500;
 
         let paginaActualAlbum = 1;
         const totalPaginasAlbum = 10;
@@ -374,7 +396,9 @@
                     if (datosEstado.repertorio_activo) idRepertorioAUsar = datosEstado.repertorio_activo;
                     if (datosEstado.link_stream) linkStreamEncontrado = datosEstado.link_stream;
                     if (datosEstado.precio_carton) precioEntradaShow = Number(datosEstado.precio_carton);
+                    if (datosEstado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
                     numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(String);
+                    actualizarBannerAvisoFlash(datosEstado.aviso_flash);
                 }
 
                 if (!linkStreamEncontrado) {
@@ -404,6 +428,17 @@
             } catch (e) { console.error(e); }
         }
 
+        function actualizarBannerAvisoFlash(mensaje) {
+            const banner = document.getElementById('bannerAvisoFlash');
+            if (!banner) return;
+            if (mensaje && mensaje.trim() !== "") {
+                banner.innerText = `📢 ${mensaje}`;
+                banner.style.display = "block";
+            } else {
+                banner.style.display = "none";
+            }
+        }
+
         async function calcularYActualizarPozo() {
             try {
                 const snapDnis = await getDocs(collection(db, "dnis_habilitados"));
@@ -412,13 +447,23 @@
                     if (d.data().estado === "pagado" && d.id !== "seba123" && !d.id.startsWith("vip")) countPagados++;
                 });
                 totalPagadosContados = countPagados;
-                let basePozo = 10000;
-                let recaudacionReal = totalPagadosContados * precioEntradaShow;
-                pozoTotalCalculado = Math.max(basePozo, recaudacionReal);
                 
-                // Mostramos el pozo total visual de forma completa arriba (arranca en 10.000 y sube)
-                const lblPozo = document.getElementById('lblMontoPozoBingo');
-                if (lblPozo) lblPozo.innerText = `$${pozoTotalCalculado.toLocaleString('es-AR')}`;
+                let basePozo = 10000;
+                let recaudacionTotal = totalPagadosContados * precioEntradaShow;
+                let porcentajePremios = 1 - porcentajeGananciaOrganizador;
+                let recaudacionParaPremios = recaudacionTotal * porcentajePremios;
+
+                pozoTotalCalculado = Math.max(basePozo, Math.floor(recaudacionParaPremios));
+                pozoLinea1 = Math.floor(pozoTotalCalculado * 0.20);
+                pozoLinea2 = Math.floor(pozoTotalCalculado * 0.15);
+
+                const lblBingo = document.getElementById('lblMontoPozoBingo');
+                const lblL1 = document.getElementById('lblMontoPozoL1');
+                const lblL2 = document.getElementById('lblMontoPozoL2');
+                
+                if (lblBingo) lblBingo.innerText = `$${pozoTotalCalculado.toLocaleString('es-AR')}`;
+                if (lblL1) lblL1.innerText = `$${pozoLinea1.toLocaleString('es-AR')}`;
+                if (lblL2) lblL2.innerText = `$${pozoLinea2.toLocaleString('es-AR')}`;
             } catch(e) {}
         }
 
@@ -430,7 +475,10 @@
                     modoTransmisionActual = estado.modo_transmision || "automatico";
                     numerosSalidos = (estado.lista_numeros_salidos || []).map(String);
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
+                    if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
                     
+                    actualizarBannerAvisoFlash(estado.aviso_flash);
+
                     let idRepertorio = estado.repertorio_activo;
                     if (idRepertorio) {
                         const repSnap = await getDoc(doc(db, "repertorios", idRepertorio));
@@ -634,7 +682,7 @@
                 nro_carton: proxNro, nombre_participante: nombre, id_pago: dniOriginal, modalidad: modalidadElegida,
                 numeros: bolsa, marcados_manuales: [], album_pegadas: [], album_doradas: [], repetidas: [],
                 sobres_pendientes: 0, puntos: puntosPrevios, trivias_respondidas: [], pase_proximo_show_gratis: false,
-                bola_loca_reclamada: false
+                bola_loca_reclamada: false, linea_reclamada: false
             };
             try { await setDoc(doc(db, "cartones_vendidos", dniOriginal), nuevoCarton); } catch(e) {}
             asignarEIniciarCarton(nuevoCarton);
@@ -651,6 +699,7 @@
             puntosTriviaJugador = data.puntos || 0;
             triviasRespondidasIds = (data.trivias_respondidas || []).map(String);
             yaReclameBolaLoca = data.bola_loca_reclamada || false;
+            yaCanteLinea = data.linea_reclamada || false;
             if(data.modalidad) modalidadElegida = data.modalidad;
 
             tamañoCartonDinamico = misNumeros.length; let tamFila = Math.floor(misNumeros.length / 3);
@@ -688,6 +737,7 @@
                     puntosTriviaJugador = d.puntos || 0;
                     triviasRespondidasIds = (d.trivias_respondidas || []).map(String);
                     yaReclameBolaLoca = d.bola_loca_reclamada || false;
+                    yaCanteLinea = d.linea_reclamada || false;
                     document.getElementById('lblPuntosJugador').innerText = `${puntosTriviaJugador} pts`;
                     document.getElementById('lblMisPuntosCanjeVista').innerText = `${puntosTriviaJugador} pts`;
                     renderizarPaginaAlbum(); renderizarMisRepetidas(); renderizarBandejaTrivias(); renderizarCatalogoCanjeDinamico(); actualizarIndicadorSobres();
@@ -775,7 +825,9 @@
         };
 
         function renderizarMatrizNumerosYVerificarPremios(estadoGlobal) {
-            const contenedor = document.getElementById('grillaNumerosBingo'); contenedor.innerHTML = "";
+            const contenedor = document.getElementById('grillaNumerosBingo'); 
+            if (!contenedor) return;
+            contenedor.innerHTML = "";
             contenedor.style.gridTemplateColumns = tamañoCartonDinamico === 9 ? "repeat(3, 1fr)" : "repeat(5, 1fr)";
             let aciertosReales = 0, aciertosF1 = 0, aciertosF2 = 0, aciertosF3 = 0;
             
@@ -825,50 +877,46 @@
 
                 let premioTexto = modalidadElegida === 'presencial' ? "¡Ganaste un trago en la barra 🍹!" : "¡Ganaste un pase libre para el próximo show 🏠!";
                 alert(`🔥 ¡BOLA LOCA ENCONTRADA! 🔥\nTu cartón tenía el número #${String(numeroClaveBolaLoca).padStart(2,'0')}.\n${premioTexto}\nAvisale al personal del show.`);
-                return; // Cortamos para que no se mezcle con línea ni bingo
+                return;
             }
 
-            // Si ya cantó bingo, congelamos las líneas
+            // 🌟 2. CONTROL ESTRICTO DE LÍNEA
             let bingoYaCantadoGlobal = (estadoGlobal.bingo_ganado === true || yaCanteBingo);
-
             let totalLineasHabilitadasMax = Number(estadoGlobal.lineas_premiadas_max || 1);
-            let lineasActualesContadas = 0;
-            let f1Completa = (fila1.length > 0 && fila1.every(n => numerosSalidos.includes(n) || marcadosManualmente.includes(n)));
-            let f2Completa = (fila2.length > 0 && fila2.every(n => numerosSalidos.includes(n) || marcadosManualmente.includes(n)));
-            let f3Completa = (fila3.length > 0 && fila3.every(n => numerosSalidos.includes(n) || marcadosManualmente.includes(n)));
+            let lineasActualesGlobales = Number(estadoGlobal.contador_lineas_ganadas || 0);
 
-            if (f1Completa) lineasActualesContadas++;
-            if (f2Completa) lineasActualesContadas++;
-            if (f3Completa) lineasActualesContadas++;
+            let f1Completa = (fila1.length > 0 && fila1.every(n => numerosSalidos.includes(n)));
+            let f2Completa = (fila2.length > 0 && fila2.every(n => numerosSalidos.includes(n)));
+            let f3Completa = (fila3.length > 0 && fila3.every(n => numerosSalidos.includes(n)));
+            let tengoAlgunaLinea = f1Completa || f2Completa || f3Completa;
 
-            if (lineasActualesContadas > 0 && !yaCanteLinea && !bingoYaCantadoGlobal) {
-                if ((estadoGlobal.contador_lineas_ganadas || 0) < totalLineasHabilitadasMax) {
-                    yaCanteLinea = true;
-                    
-                    let porcentajePremio = (lineasActualesContadas === 1) ? 0.20 : 0.15;
-                    let montoPremioBruto = pozoTotalCalculado * porcentajePremio;
-                    let montoPremioRedondeado = Math.floor(montoPremioBruto); // Redondeado para abajo sin decimales
+            if (tengoAlgunaLinea && !yaCanteLinea && !bingoYaCantadoGlobal && lineasActualesGlobales < totalLineasHabilitadasMax) {
+                yaCanteLinea = true;
+                let nroLineaOrden = lineasActualesGlobales + 1;
+                let montoPremioRedondeado = (nroLineaOrden === 1) ? pozoLinea1 : pozoLinea2;
 
-                    try { 
-                        addDoc(collection(db, "notificaciones_escenario"), { 
-                            tipo: "LINEA", nombre: infoUsuarioLogueado.nombre, id_pago: infoUsuarioLogueado.dni, 
-                            nro_carton: nroCartonAsignado, cantidad_lineas: lineasActualesContadas, monto: montoPremioRedondeado, timestamp: new Date() 
-                        }); 
-                    } catch(e){}
+                try { 
+                    updateDoc(doc(db, "estado_show", "actual"), { contador_lineas_ganadas: nroLineaOrden });
+                    updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), { linea_reclamada: true });
+                    addDoc(collection(db, "notificaciones_escenario"), { 
+                        tipo: `LÍNEA #${nroLineaOrden}`, nombre: infoUsuarioLogueado.nombre, id_pago: infoUsuarioLogueado.dni, 
+                        nro_carton: nroCartonAsignado, monto: montoPremioRedondeado, timestamp: new Date() 
+                    }); 
+                } catch(e){}
 
-                    document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
-                    document.getElementById('lblMensajeBloqueo').style.display = "block"; 
-                    alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste ${lineasActualesContadas} línea(s) y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
-                }
+                document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
+                document.getElementById('lblMensajeBloqueo').style.display = "block"; 
+                alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste la Línea #${nroLineaOrden} y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
             }
 
-            if (aciertosReales === misNumeros.length && misNumeros.length > 0 && !yaCanteBingo) {
+            // 🌟 3. CONTROL DE BINGO
+            if (aciertosReales === misNumeros.length && misNumeros.length > 0 && !yaCanteBingo && !estadoGlobal.bingo_ganado) {
                 yaCanteBingo = true; 
                 try { 
                     updateDoc(doc(db, "estado_show", "actual"), { bingo_ganado: true });
                     addDoc(collection(db, "notificaciones_escenario"), { 
                         tipo: "BINGO", nombre: infoUsuarioLogueado.nombre, id_pago: infoUsuarioLogueado.dni, 
-                        nro_carton: nroCartonAsignado, timestamp: new Date() 
+                        nro_carton: nroCartonAsignado, monto: pozoTotalCalculado, timestamp: new Date() 
                     }); 
                 } catch(e){}
                 document.getElementById('modalBingoGanado').style.display = "flex";
@@ -927,14 +975,15 @@
         }
 
         // ==========================================
-        // 🌟 APERTURA DE SOBRES (DROP REAL 3% PARA DORADAS)
+        // 🌟 APERTURA DE SOBRES (DROP 3% DORADAS SIN OVERLAY INVASIVO)
         // ==========================================
         window.abrirSobreAcumulado = async function() {
             if (!showEnVivoHabilitado) { alert("Los sobres se abren durante el show en vivo."); return; }
             if (sobresPendientesParaAbrir <= 0) return;
             sobresPendientesParaAbrir--;
             let totalDisponiblesRepertorio = Object.keys(temasDelRepertorioActivo).length || 60;
-            let sobreAbierto = []; let ganoDoradaNueva = false;
+            let sobreAbierto = []; 
+            let ganoFiguritaUltraOro001 = false;
 
             for(let i = 0; i < 5; i++) {
                 let idAleatorio;
@@ -947,11 +996,13 @@
 
                 let esDorada = (idAleatorio >= 55);
 
+                // Celebración reservada exclusivamente para la figurita ultra-rara #1 de oro
+                if (idAleatorio === 1 && Math.random() < 0.005) {
+                    ganoFiguritaUltraOro001 = true;
+                }
+
                 if (esDorada) {
-                    if (!misFiguritasDoradas.includes(idAleatorio)) {
-                        misFiguritasDoradas.push(idAleatorio);
-                        ganoDoradaNueva = true;
-                    }
+                    if (!misFiguritasDoradas.includes(idAleatorio)) misFiguritasDoradas.push(idAleatorio);
                     if (!misFiguritasColeccionadas.includes(idAleatorio)) {
                         misFiguritasColeccionadas.push(idAleatorio);
                         sobreAbierto.push({ id: idAleatorio, tipo: 'gold' });
@@ -959,7 +1010,6 @@
                         misRepetidas.push(idAleatorio);
                         sobreAbierto.push({ id: idAleatorio, tipo: 'repetida' });
                     }
-                    try { addDoc(collection(db, "notificaciones_escenario"), { tipo: "DORADA", nombre: infoUsuarioLogueado.nombre, id_pago: infoUsuarioLogueado.dni, nro_carton: nroCartonAsignado, figurita_id: idAleatorio, timestamp: new Date() }); } catch(e) {}
                 } else if (!misFiguritasColeccionadas.includes(idAleatorio)) {
                     misFiguritasColeccionadas.push(idAleatorio);
                     sobreAbierto.push({ id: idAleatorio, tipo: 'nueva' });
@@ -968,7 +1018,6 @@
                     sobreAbierto.push({ id: idAleatorio, tipo: 'repetida' });
                 }
             }
-            if (ganoDoradaNueva) { sobresPendientesParaAbrir += 3; }
 
             let albumLleno = misFiguritasColeccionadas.length >= totalDisponiblesRepertorio && totalDisponiblesRepertorio > 0;
 
@@ -979,7 +1028,7 @@
                     repetidas: misRepetidas, 
                     sobres_pendientes: sobresPendientesParaAbrir 
                 };
-                if (ganoDoradaNueva || albumLleno) updateData.pase_proximo_show_gratis = true;
+                if (albumLleno || ganoFiguritaUltraOro001) updateData.pase_proximo_show_gratis = true;
                 await updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), updateData);
             } catch(e) {}
 
@@ -991,9 +1040,9 @@
                 cajaPremioEspecial.style.display = "block";
                 cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.9rem;">👑 ¡ÁLBUM COMPLETADO! Ganaste tu Pase Libre al Próximo Show 🎉</p>`;
                 dispararEspamentoDorado();
-            } else if (ganoDoradaNueva) { 
+            } else if (ganoFiguritaUltraOro001) { 
                 cajaPremioEspecial.style.display = "block"; 
-                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA DORADA DE LA ÚLTIMA PÁGINA! +3 Sobres Extra 🎁</p>`;
+                cajaPremioEspecial.innerHTML = `<p style="font-weight:bold; color:var(--gold); font-size:0.85rem;">👑 ¡FIGURITA #001 DE ORO ULTRA-RARA! Pase Libre Ganado 🎁</p>`;
                 dispararEspamentoDorado(); 
             } else { 
                 cajaPremioEspecial.style.display = "none"; 
@@ -1016,10 +1065,13 @@
             if (overlayEspamento) {
                 overlayEspamento.style.display = "flex";
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-                setTimeout(() => { overlayEspamento.style.display = "none"; }, 4000);
+                setTimeout(() => { overlayEspamento.style.display = "none"; }, 3500);
             }
         }
 
+        // ==========================================
+        // 📘 RENDERIZADO VISUAL DEL ÁLBUM CON IMÁGENES CORREGIDAS
+        // ==========================================
         function renderizarPaginaAlbum() {
             const grilla = document.getElementById('grillaAlbumFiguritas'); const lblPagina = document.getElementById('lblPaginaActual');
             const lblProgreso = document.getElementById('lblProgresoAlbum'); const bloquePuntosBanner = document.getElementById('bloqueBotonCanje');
@@ -1038,7 +1090,7 @@
             let inicio = (paginaActualAlbum - 1) * 6 + 1, fin = inicio + 5;
 
             for(let idFigurita = inicio; idFigurita <= fin; idFigurita++) {
-                let tieneFigurita = showEnVivoHabilitado ? misFiguritasColeccionadas.includes(idFigurita) : false;
+                let tieneFigurita = misFiguritasColeccionadas.includes(idFigurita);
                 let esDorada = (idFigurita >= 55);
                 
                 let item = document.createElement('div'), claseEstado = 'bloqueada';
@@ -1055,9 +1107,15 @@
                 let nombreTemaLimpio = String(datosCancionVinculada.nombre || "").replace(/^\d+[\s-:=]*/, '');
 
                 if (tieneFigurita) {
-                    item.style.cursor = "pointer"; item.onclick = () => abrirModalZoomFigurita(idFigurita, nombreTemaLimpio, urlImagen, esDorada);
+                    item.style.cursor = "pointer"; 
+                    item.onclick = () => abrirModalZoomFigurita(idFigurita, nombreTemaLimpio, urlImagen, esDorada);
                     let badgeGold = esDorada ? `<span class="badge-gold-tag">👑 ORO</span>` : "";
-                    item.innerHTML = `<div class="fig-header-flex"><span class="fig-numero">#${String(idFigurita).padStart(2, '0')}</span>${badgeGold}</div><div class="fig-img-placeholder">${urlImagen ? `<img src="${urlImagen}">` : `#${String(idFigurita).padStart(2, '0')}`}</div>`;
+                    
+                    let htmlImg = (urlImagen && urlImagen.startsWith("http")) 
+                        ? `<img src="${urlImagen}" loading="lazy" alt="#${idFigurita}">` 
+                        : `<span style="color:var(--neon-cyan); font-weight:bold;">#${String(idFigurita).padStart(2, '0')}</span>`;
+                    
+                    item.innerHTML = `<div class="fig-header-flex"><span class="fig-numero">#${String(idFigurita).padStart(2, '0')}</span>${badgeGold}</div><div class="fig-img-placeholder">${htmlImg}</div>`;
                 } else {
                     item.innerHTML = `<div class="fig-numero">#${String(idFigurita).padStart(2, '0')}</div><div class="fig-img-placeholder" style="color:#334155; font-weight: bold;">#${String(idFigurita).padStart(2, '0')}</div>`;
                 }
@@ -1334,9 +1392,15 @@
         input, select { width: 100%; padding: 12px; background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; margin-bottom: 12px; font-size: 0.95rem; }
         .btn-accion { width: 100%; padding: 12px; background: var(--neon-rosa); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 0.85rem; }
         .btn-wsp { background: var(--green); color: #fff; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
-        .barra-pozo-vivo { background: linear-gradient(135deg, rgba(255,209,102,0.15) 0%, rgba(0,245,212,0.15) 100%); border: 1px solid var(--gold); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .barra-pozo-vivo small { color: #94a3b8; font-size: 0.7rem; text-transform: uppercase; display: block; }
-        .barra-pozo-vivo span { font-size: 1.1rem; font-weight: bold; color: var(--gold); }
+        
+        /* BARRA DE POZOS ROTATIVO / MULTI-MONTO */
+        .barra-pozo-multi { background: linear-gradient(135deg, rgba(255,209,102,0.12) 0%, rgba(0,245,212,0.12) 100%); border: 1px solid var(--gold); border-radius: 12px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .col-pozo { text-align: center; }
+        .col-pozo small { color: #94a3b8; font-size: 0.65rem; text-transform: uppercase; display: block; }
+        .col-pozo span { font-size: 0.95rem; font-weight: bold; color: var(--gold); }
+        
+        .banner-aviso-flash { background: var(--neon-rosa); color: #fff; font-weight: bold; padding: 10px; border-radius: 10px; text-align: center; font-size: 0.85rem; margin-bottom: 12px; display: none; }
+        
         .boton-ir-canje { background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 8px; padding: 6px 10px; text-align: right; display: block; cursor: pointer; }
         .boton-ir-canje.album-completo-titilar { border: 2px solid var(--gold); animation: titilarPremio 1s infinite alternate; }
         @keyframes titilarPremio { 0% { transform: scale(0.98); } 100% { transform: scale(1.03); } }
@@ -1353,29 +1417,84 @@
         .marcada-manual { background: linear-gradient(135deg, #ff0055 0%, #ff5400 100%) !important; color: #fff !important; }
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        
+        /* BOLA ANIMADA EN PRIMER PLANO */
+        .overlay-bola-show {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 14, 23, 0.75);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            pointer-events: none;
+            animation: fadeInBola 0.4s ease-out;
+        }
+
+        .bola-bingo-3d {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffd166, #d4a373 60%, #b07d62 100%);
+            box-shadow: 0 0 25px rgba(255, 209, 102, 0.8), inset -5px -5px 15px rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #fff;
+            animation: girarYSaltar 0.8s ease-out;
+        }
+
+        .bola-bingo-3d span {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #000;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.6);
+        }
+
+        .nombre-tema-bola {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: var(--neon-cyan);
+            text-align: center;
+            text-shadow: 0 0 8px rgba(0,245,212,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
+        @keyframes girarYSaltar {
+            0% { transform: scale(0.2) rotate(-180deg); opacity: 0; }
+            70% { transform: scale(1.15) rotate(15deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        @keyframes fadeInBola {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
         .grilla-album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .item-figurita { background: #0a0e17; border: 2px dashed #2a3f64; border-radius: 10px; padding: 8px; text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
         .item-figurita.desbloqueada { border: 2px solid var(--neon-cyan); background: #151f32; }
         
-        /* ESTILOS DE LA FIGURITA DORADA (ÚLTIMA PÁGINA) */
         .item-figurita.desbloqueada-gold { 
             border: 2px solid var(--gold); 
             background: linear-gradient(135deg, rgba(255,209,102,0.3) 0%, rgba(20,20,20,0.9) 100%);
-            box-shadow: 0 0 15px rgba(255,209,102,0.5);
-            animation: brilloDorado 2s infinite alternate;
-        }
-        @keyframes brilloDorado {
-            0% { box-shadow: 0 0 5px rgba(255,209,102,0.3); border-color: #cca33b; }
-            100% { box-shadow: 0 0 20px rgba(255,209,102,0.8); border-color: var(--gold); }
+            box-shadow: 0 0 10px rgba(255,209,102,0.4);
         }
 
         .fig-header-flex { display: flex; justify-content: space-between; align-items: center; }
         .fig-numero { font-size: 0.75rem; color: var(--gold); font-weight: bold; }
-        .badge-gold-tag { font-size: 0.65rem; background: var(--gold); color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; box-shadow: 0 0 8px var(--gold); }
+        .badge-gold-tag { font-size: 0.65rem; background: var(--gold); color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; }
+        
+        /* CONTENEDOR DE IMÁGENES CORREGIDO */
         .fig-img-placeholder { width: 100%; height: 85px; background: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #2a3f64; }
-        .fig-img-placeholder img { width: 100%; height: 100%; object-fit: contain; }
+        .fig-img-placeholder img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        
         .tarjeta-trivia-item { background: #0a0e17; border: 1px solid #24344f; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
         .header-trivia-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2d4a; padding-bottom: 5px; }
         .card-premio-item { background: #0a0e17; border: 1px solid #24344f; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
@@ -1387,7 +1506,6 @@
         .casillero-intercambio-mini.te-falta { background: rgba(0, 245, 212, 0.15); border: 2px solid var(--neon-cyan); color: var(--neon-cyan); }
         .casillero-intercambio-mini.le-sirve { background: rgba(255, 209, 102, 0.15); border: 2px solid var(--gold); color: var(--gold); }
         
-        /* ESTILOS DEL TOUR / GLOBO CENTRADO SEGURO */
         .tour-resaltado { border: 3px solid var(--gold) !important; box-shadow: 0 0 35px var(--gold) !important; transition: all 0.3s ease; position: relative; z-index: 5001 !important; }
         .tour-backdrop-oscuro { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 5000; display: none; }
         .modal-overlay-tour { position: fixed; z-index: 5002; display: none; width: 90%; max-width: 320px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
@@ -1400,7 +1518,7 @@
         .grilla-premios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
         .fig-premio { background: #0a0e17; border: 1px solid #24344f; border-radius: 8px; padding: 6px; text-align: center; }
         .fig-premio.nueva { border-color: var(--neon-cyan); }
-        .fig-premio.gold { border: 2px solid var(--gold); background: linear-gradient(135deg, rgba(255,209,102,0.3) 0%, rgba(10,14,23,0.95) 100%); box-shadow: 0 0 15px var(--gold); }
+        .fig-premio.gold { border: 2px solid var(--gold); background: linear-gradient(135deg, rgba(255,209,102,0.3) 0%, rgba(10,14,23,0.95) 100%); }
         .fig-premio.repetida { border-color: #334155; }
         .espamento-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,209,102,0.4) 0%, rgba(0,0,0,0.95) 80%); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100000; text-align: center; }
     </style>
@@ -1435,8 +1553,8 @@
 </div>
 
 <div id="overlayEspamentoDorado" class="espamento-overlay">
-    <h1 style="font-size: 2rem; color: var(--gold); margin-bottom: 8px;">👑 ¡FIGURITA DORADA DE LA ÚLTIMA PÁGINA! 👑</h1>
-    <p style="font-size: 1rem; color: #fff; font-weight: bold;">¡Desbloqueaste una pieza ultra-rara y tu Pase al Próximo Show!</p>
+    <h1 style="font-size: 2rem; color: var(--gold); margin-bottom: 8px;">👑 ¡PIEZA ULTRA-RARA! 👑</h1>
+    <p style="font-size: 1rem; color: #fff; font-weight: bold;">¡Desbloqueaste tu Pase Libre al Próximo Show!</p>
 </div>
 
 <div id="modalSobreSorpresa" class="modal-overlay">
@@ -1480,6 +1598,9 @@
 
 <div class="contenedor-centrado">
     
+    <!-- BANNER AVISO FLASH EN VIVO -->
+    <div id="bannerAvisoFlash" class="banner-aviso-flash"></div>
+
     <!-- LOGIN -->
     <div id="cajaLogin" class="card-caja">
         <h1>Family Game Show</h1>
@@ -1519,8 +1640,11 @@
     <!-- ZONA DE JUEGO ACTIVO -->
     <div id="cajaJuegoActivo" style="display:none;">
         
-        <div class="barra-pozo-vivo">
-            <div><small>💰 Pozo Bingo</small><span id="lblMontoPozoBingo">$10.000</span></div>
+        <!-- VISOR DE POZOS COMPLETO -->
+        <div class="barra-pozo-multi">
+            <div class="col-pozo"><small>💰 Bingo</small><span id="lblMontoPozoBingo">$10.000</span></div>
+            <div class="col-pozo"><small>🥇 1ª Línea</small><span id="lblMontoPozoL1">$2.000</span></div>
+            <div class="col-pozo"><small>🥈 2ª Línea</small><span id="lblMontoPozoL2">$1.500</span></div>
             <div>
                 <div id="bloqueBotonCanje" class="boton-ir-canje" onclick="cambiarSeccionJuego('canje')">
                     <small id="lblSubCanjeTag" style="color:var(--gold); font-weight:bold;">🎁 Ver Premios</small>
@@ -1541,10 +1665,18 @@
 
         <!-- VISTA 1: BINGO -->
         <div id="vistaBingo">
-            <div class="card-caja">
+            <div class="card-caja" style="position: relative;">
                 <h2>📺 Transmisión Oficial</h2>
-                <div class="video-container-simple">
+                <div class="video-container-simple" style="position: relative;">
                     <iframe id="iframeStream" src="https://www.youtube.com/embed/rrN9WR46-b8?enablejsapi=1&autoplay=1&controls=0&playsinline=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    
+                    <!-- BOLA ANIMADA EN PRIMER PLANO -->
+                    <div id="overlayBolaEscenario" class="overlay-bola-show" style="display: none;">
+                        <div class="bola-bingo-3d">
+                            <span id="lblNumeroBolaShow">--</span>
+                        </div>
+                        <div id="lblNombreTemaBolaShow" class="nombre-tema-bola">Cargando...</div>
+                    </div>
                 </div>
             </div>
 
