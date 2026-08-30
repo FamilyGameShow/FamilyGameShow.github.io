@@ -164,26 +164,27 @@
                 return;
             }
 
+            // Modo Automático (Canción individual o Pantalla de Espera Activa)
+            if (overlayVisual) overlayVisual.style.display = "flex";
+
             const num = Number(ultimaCancionCantada);
 
-            if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
+            if (num && num >= 1 && num <= 60) {
                 let datosTema = obtenerDatosCancion(num);
                 let urlYoutube = datosTema.url_youtube || "";
                 let nombreTema = datosTema.nombre || `Canción #${String(num).padStart(2, '0')}`;
                 let idVideo = extraerIdYouTube(urlYoutube);
 
-                if (overlayVisual && lblNum) {
-                    lblNum.innerText = String(num).padStart(2, '0');
-                    if (lblTema) lblTema.innerText = nombreTema;
-                    overlayVisual.style.display = "flex";
-                }
+                if (lblNum) lblNum.innerText = String(num).padStart(2, '0');
+                if (lblTema) lblTema.innerText = nombreTema;
 
                 if (ultimaCancionTocadaProcesada !== num && idVideo) {
                     ultimaCancionTocadaProcesada = num;
                     iframe.src = `https://www.youtube.com/embed/${idVideo}?enablejsapi=1&autoplay=1&playsinline=1`;
                 }
             } else {
-                if (overlayVisual) overlayVisual.style.display = "none";
+                if (lblNum) lblNum.innerText = "FGS";
+                if (lblTema) lblTema.innerText = "¡El Show comenzará pronto!";
             }
         }
 
@@ -368,6 +369,7 @@
             try {
                 let idRepertorioAUsar = "lista_prueba"; 
                 let linkStreamEncontrado = "";
+                let ultimaCancionInicial = null;
 
                 const snapEstado = await getDoc(doc(db, "estado_show", "actual"));
                 if (snapEstado.exists()) {
@@ -379,12 +381,13 @@
                     if (datosEstado.precio_carton) precioEntradaShow = Number(datosEstado.precio_carton);
                     if (datosEstado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
                     if (datosEstado.fotos_banner) iniciarCarruselFotos(datosEstado.fotos_banner);
+                    if (datosEstado.ultima_cancion_tocada) ultimaCancionInicial = datosEstado.ultima_cancion_tocada;
                     numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     actualizarBannerAvisoFlash(datosEstado.aviso_flash);
                 }
 
                 await cargarCancionesDeRepertorio(idRepertorioAUsar);
-                gestionarReproductorSegunModo(linkStreamEncontrado, null);
+                gestionarReproductorSegunModo(linkStreamEncontrado, ultimaCancionInicial);
                 
                 aplicarBloqueoPreShowEstricto();
                 actualizarSelectorCancionesDinamico();
@@ -441,7 +444,7 @@
                     modoTransmisionActual = estado.modo_transmision || "automatico";
                     numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
-                    if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(datosEstado.porcentaje_ganancia);
+                    if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
                     if (estado.fotos_banner) iniciarCarruselFotos(estado.fotos_banner);
                     
                     actualizarBannerAvisoFlash(estado.aviso_flash);
@@ -625,7 +628,6 @@
             
             for(let i = 1; i <= maxTotal; i++) codigosDisponibles.push(String(i));
             
-            // 15 números para formato oficial apaisado
             tamañoCartonDinamico = 15;
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
@@ -804,7 +806,6 @@
             if (!contenedor) return;
             contenedor.innerHTML = "";
             
-            // Si son 15 números usamos 5 columnas (3 filas x 5 columnas apaisado)
             contenedor.style.gridTemplateColumns = (tamañoCartonDinamico === 15) ? "repeat(5, 1fr)" : "repeat(3, 1fr)";
             let aciertosReales = 0;
             
@@ -1287,7 +1288,7 @@
                     } else if (tienePuntos) {
                         btnHtml = `<button class="btn-accion" style="background:var(--green); color:#000;" onclick="iniciarProcesoCanjeDinamico('${p.firebase_id}', '${p.titulo.replace(/'/g, "\\'")}', ${p.puntos})">¡Canjear Ahora! 🎁</button>`;
                     } else {
-                        btnHtml = `<button class="btn-accion" style="background:#1e293b; color:#64748b; cursor:not-allowed;" disabled>Te faltan ${faltan} pts</button>`;
+                        btnHtml = `<button class="btn-accion" style="background:#1e2d4a; color:#64748b; cursor:not-allowed;" disabled>Te faltan ${faltan} pts</button>`;
                     }
 
                     let tagModalidad = p.tipo === 'presencial' ? '<span style="color:var(--gold); font-size:0.6rem;">🪑 Presencial</span>' : '<span style="color:var(--neon-cyan); font-size:0.6rem;">🏠 Casa</span>';
@@ -1585,8 +1586,8 @@
                 <div class="video-container-simple" style="position: relative;">
                     <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                     
-                    <!-- CUBIERTA VISUAL CON CARRUSEL DE FOTOS ROTATIVAS -->
-                    <div id="overlayVisualAudio" class="overlay-visual-audio" style="display: none;">
+                    <!-- CUBIERTA VISUAL SIEMPRE ACTIVA CON CARRUSEL DE FOTOS ROTATIVAS -->
+                    <div id="overlayVisualAudio" class="overlay-visual-audio">
                         <div id="carruselFondoShow" class="carrusel-fondo"></div>
                         <div class="sombra-oscura-carrusel"></div>
                         
@@ -1594,7 +1595,7 @@
                             <span id="lblNumeroShow">00</span>
                         </div>
                         <div id="lblTemaShow" class="lbl-tema-flotante">...</div>
-                        <small style="color: #cbd5e1; margin-top: 4px; z-index: 5; text-shadow: 1px 1px 3px #000;">🔊 Reproduciendo audio en vivo</small>
+                        <small style="color: #cbd5e1; margin-top: 4px; z-index: 5; text-shadow: 1px 1px 3px #000;">🔊 En Vivo</small>
                     </div>
                 </div>
             </div>
@@ -1608,7 +1609,7 @@
                 </div>
             </div>
             
-            <!-- GRILLA APASADA (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
+            <!-- GRILLA APASADA DEL CARTÓN (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
             <div class="card-caja">
                 <button class="btn-modo-toggle" id="btnToggleModoMarcado" onclick="toggleModoMarcado()">Modo: Automático ⚡ (Cambiar a Manual ✍️)</button>
                 <div class="grilla-bingo-viva" id="grillaNumerosBingo"></div>
