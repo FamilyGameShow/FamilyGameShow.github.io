@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Ruta Firebase - FGS</title>
+    <title>Test Exacto - FGS</title>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -25,85 +25,36 @@
         let repertorioActual = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
-            await cargarRepertoriosYDetectarEstructura();
+            await cargarRepertorioExacto();
         });
 
-        async function cargarRepertoriosYDetectarEstructura() {
-            const selectRep = document.getElementById('selectRepertoriosTest');
+        async function cargarRepertorioExacto() {
             const logBox = document.getElementById('logDiagnostico');
+            logBox.innerHTML = "<p>⏳ Leyendo ruta: <b>repertorios / lista_prueba / canciones</b>...</p>";
+
             try {
-                const snap = await getDocs(collection(db, "repertorios"));
-                selectRep.innerHTML = "";
+                // Leemos directamente la subcolección canciones dentro de lista_prueba
+                const snapCanciones = await getDocs(collection(db, "repertorios", "lista_prueba", "canciones"));
                 
-                if (snap.empty) {
-                    logBox.innerHTML = "<p style='color:red;'>❌ No hay documentos en la colección 'repertorios'.</p>";
+                if (snapCanciones.empty) {
+                    logBox.innerHTML = "<p style='color:red;'>❌ No se encontraron documentos dentro de 'canciones'.</p>";
                     return;
                 }
 
-                snap.forEach(d => {
-                    let opt = document.createElement('option');
-                    opt.value = d.id;
-                    opt.innerText = d.id.toUpperCase();
-                    selectRep.appendChild(opt);
+                logBox.innerHTML = `<p style="color:#00f5d4;">✅ ¡CONEXIÓN EXITOSA! Se encontraron <b>${snapCanciones.size} canciones</b>.</p>`;
+
+                snapCanciones.forEach(d => {
+                    // Normalizamos tanto la clave con ceros ("001") como en número (1)
+                    let numLimpio = parseInt(d.id, 10);
+                    repertorioActual[String(numLimpio)] = d.data();
+                    repertorioActual[d.id] = d.data();
                 });
 
-                if (selectRep.value) {
-                    analizarYLeerRepertorio(selectRep.value);
-                }
-            } catch(e) {
-                logBox.innerHTML = `<p style='color:red;'>❌ Error: ${e.message}</p>`;
-            }
-        }
+                renderizarBotonesPrueba();
+                renderizarMuestraFiguritas();
 
-        window.cambiarRepertorioManual = function() {
-            const id = document.getElementById('selectRepertoriosTest').value;
-            if (id) analizarYLeerRepertorio(id);
-        };
-
-        async function analizarYLeerRepertorio(idRep) {
-            const logBox = document.getElementById('logDiagnostico');
-            logBox.innerHTML = `<p>⏳ Analizando estructura del documento <b>${idRep}</b>...</p>`;
-            repertorioActual = {};
-
-            try {
-                // INTENTO 1: ¿Es un campo dentro del documento?
-                const docSnap = await getDoc(doc(db, "repertorios", idRep));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.canciones && typeof data.canciones === 'object' && Object.keys(data.canciones).length > 0) {
-                        repertorioActual = data.canciones;
-                        logBox.innerHTML = `<p style="color:#00f5d4;">✅ <b>ESTRUCTURA TIPO A DETECTADA:</b> 'canciones' es un campo mapa con <b>${Object.keys(repertorioActual).length}</b> temas.</p>`;
-                        renderizarTodo();
-                        return;
-                    }
-                }
-
-                // INTENTO 2: ¿Es una subcolección 'canciones' adentro del documento?
-                const subColSnap = await getDocs(collection(db, "repertorios", idRep, "canciones"));
-                if (!subColSnap.empty) {
-                    subColSnap.forEach(d => {
-                        repertorioActual[d.id] = d.data();
-                    });
-                    logBox.innerHTML = `<p style="color:#00f5d4;">✅ <b>ESTRUCTURA TIPO B DETECTADA:</b> 'canciones' es una <b>SUBCOLECCIÓN</b> con <b>${subColSnap.size}</b> documentos.</p>`;
-                    renderizarTodo();
-                    return;
-                }
-
-                // INTENTO 3: ¿Están los campos sueltos en el documento?
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    let claves = Object.keys(data).filter(k => !isNaN(k));
-                    if (claves.length > 0) {
-                        claves.forEach(k => { repertorioActual[k] = data[k]; });
-                        logBox.innerHTML = `<p style="color:#00f5d4;">✅ <b>ESTRUCTURA TIPO C DETECTADA:</b> Los números están sueltos en la raíz del documento (<b>${claves.length}</b> temas).</p>`;
-                        renderizarTodo();
-                        return;
-                    }
-                }
-
-                logBox.innerHTML += `<p style="color:#ff0055;">⚠️ No se encontraron canciones bajo ninguna de las 3 estructuras en '${idRep}'.</p>`;
-            } catch(e) {
-                logBox.innerHTML = `<p style="color:#ff0055;">❌ Error al leer: ${e.message}</p>`;
+            } catch (e) {
+                logBox.innerHTML = `<p style="color:red;">❌ Error: ${e.message}</p>`;
             }
         }
 
@@ -124,7 +75,10 @@
             const lblTema = document.getElementById('lblTemaShow');
             const logAudio = document.getElementById('logAudioInfo');
 
-            const datosTema = repertorioActual[String(numero)] || {};
+            // Buscamos con o sin ceros
+            const clave3Digitos = String(numero).padStart(3, '0');
+            const datosTema = repertorioActual[clave3Digitos] || repertorioActual[String(numero)] || {};
+            
             const urlYoutube = datosTema.url_youtube || "";
             const nombreTema = datosTema.nombre || `Canción #${numero}`;
             const idVideo = extraerIdYouTube(urlYoutube);
@@ -135,50 +89,44 @@
 
             if (idVideo) {
                 iframe.src = `https://www.youtube.com/embed/${idVideo}?enablejsapi=1&autoplay=1&playsinline=1`;
-                logAudio.innerHTML = `<span style="color:#00f5d4;">▶ Sonando:</span> <b>#${numero} ${nombreTema}</b><br><small>Video ID: ${idVideo}</small>`;
+                logAudio.innerHTML = `<span style="color:#00f5d4;">▶ Sonando:</span> <b>#${numero} ${nombreTema}</b><br><small>ID Video: ${idVideo}</small>`;
             } else {
                 iframe.src = "";
-                logAudio.innerHTML = `<span style="color:#ff0055;">⚠️ El tema #${numero} no tiene 'url_youtube' cargado.</span>`;
+                logAudio.innerHTML = `<span style="color:#ff0055;">⚠️ El tema #${numero} no tiene 'url_youtube'.</span>`;
             }
         };
-
-        function renderizarTodo() {
-            renderizarBotonesPrueba();
-            renderizarMuestraFiguritas();
-        }
 
         function renderizarBotonesPrueba() {
             const cont = document.getElementById('contenedorBotonesPrueba');
             cont.innerHTML = "";
-            let keys = Object.keys(repertorioActual).sort((a, b) => Number(a) - Number(b));
-            keys.slice(0, 10).forEach(num => {
+            for (let i = 1; i <= 10; i++) {
                 let btn = document.createElement('button');
                 btn.className = "btn-tema";
-                btn.innerText = `Tema #${num}`;
-                btn.onclick = () => reproducirCancionIndividual(num);
+                btn.innerText = `Tema #${i}`;
+                btn.onclick = () => reproducirCancionIndividual(i);
                 cont.appendChild(btn);
-            });
+            }
         }
 
         function renderizarMuestraFiguritas() {
             const contenedor = document.getElementById('grillaTestFiguritas');
             contenedor.innerHTML = "";
-            let keys = Object.keys(repertorioActual).sort((a, b) => Number(a) - Number(b));
 
-            keys.slice(0, 10).forEach(num => {
-                let datos = repertorioActual[num] || {};
-                let url = datos.url_fig || "";
-                let nombre = datos.nombre || `Tema ${num}`;
+            for (let i = 1; i <= 10; i++) {
+                const clave3Digitos = String(i).padStart(3, '0');
+                const datos = repertorioActual[clave3Digitos] || repertorioActual[String(i)] || {};
+                const url = datos.url_fig || "";
+                const nombre = datos.nombre || `Tema ${i}`;
 
                 let card = document.createElement('div');
                 card.className = "card-fig-test";
 
                 let htmlImg = (url && url.startsWith("http"))
-                    ? `<img src="${url}" alt="#${num}">` 
-                    : `<span style="color:#ff0055; font-size:0.75rem;">Sin url_fig válida</span>`;
+                    ? `<img src="${url}" alt="#${i}">` 
+                    : `<span style="color:#ff0055; font-size:0.75rem;">Sin url_fig</span>`;
 
                 card.innerHTML = `
-                    <div style="font-weight:bold; color:#ffd166; margin-bottom:4px; font-size:0.85rem;">#${String(num).padStart(2,'0')} - ${nombre}</div>
+                    <div style="font-weight:bold; color:#ffd166; margin-bottom:4px; font-size:0.85rem;">#${clave3Digitos} - ${nombre}</div>
                     <div class="caja-img-test">${htmlImg}</div>
                     <div class="url-debug">
                         <b>url_fig:</b><br>${url ? url : '(Vacío)'}<br>
@@ -186,7 +134,7 @@
                     </div>
                 `;
                 contenedor.appendChild(card);
-            });
+            }
         }
     </script>
 
@@ -196,9 +144,8 @@
         .card { background: #151f32; border: 1px solid #24344f; border-radius: 12px; padding: 16px; margin-bottom: 15px; }
         h1 { color: #00f5d4; font-size: 1.2rem; text-transform: uppercase; margin-top: 0; text-align: center; }
         h2 { color: #ffd166; font-size: 0.95rem; text-transform: uppercase; margin-top: 0; margin-bottom: 10px; }
-        select { width: 100%; padding: 10px; background: #0a0e17; border: 1px solid #24344f; color: #fff; border-radius: 8px; font-size: 0.9rem; margin-bottom: 10px; }
-        .log-box { background: #000; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.8rem; color: #00f5d4; }
-        
+        .log-box { background: #000; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.85rem; color: #00f5d4; }
+
         .video-box-container { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 10px; overflow: hidden; background: #000; margin-bottom: 10px; }
         .video-box-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
         
@@ -230,25 +177,26 @@
 </head>
 <body>
     <div class="contenedor">
-        <h1>🛠️ Test de Ruta y Subcolección</h1>
+        <h1>🛠️ Test con Ruta y Formato de 3 Dígitos</h1>
 
         <div class="card">
-            <h2>1. Seleccionar Repertorio</h2>
-            <select id="selectRepertoriosTest" onchange="cambiarRepertorioManual()"></select>
+            <h2>1. Estado de Conexión</h2>
             <div id="logDiagnostico" class="log-box"></div>
         </div>
 
         <div class="card">
-            <h2>2. Audio de Canción Completa</h2>
+            <h2>2. Audio Oficial (Canción Completa)</h2>
             <div class="video-box-container">
                 <iframe id="iframeStream" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                
                 <div id="overlayVisualAudio" class="overlay-visual-audio" style="display: none;">
                     <div class="disco-animado"><span id="lblNumeroShow">--</span></div>
                     <div id="lblTemaShow" style="font-weight: bold; color: #00f5d4; margin-top: 10px; font-size: 1rem;">...</div>
                     <small style="color: #94a3b8; margin-top: 4px;">🔊 Reproduciendo audio de YouTube</small>
                 </div>
             </div>
-            <div id="logAudioInfo" style="font-size: 0.8rem; background: #000; padding: 6px; border-radius: 6px; margin-bottom: 8px;">Esperando tema...</div>
+            
+            <div id="logAudioInfo" style="font-size: 0.8rem; background: #000; padding: 6px; border-radius: 6px; margin-bottom: 8px;">Tocá un tema para probar:</div>
             <div id="contenedorBotonesPrueba"></div>
         </div>
 
