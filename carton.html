@@ -151,6 +151,7 @@
 
         function obtenerDatosCancion(num) {
             let n = parseInt(num, 10);
+            if (isNaN(n) || n < 1 || n > 60) return {};
             let clave3D = String(n).padStart(3, '0');
             return temasDelRepertorioActivo[clave3D] || temasDelRepertorioActivo[String(n)] || {};
         }
@@ -188,7 +189,7 @@
                 return;
             }
 
-            // 2. CANCIÓN EN VIVO CANTADA
+            // 2. CANCIÓN EN VIVO CANTADA (1 a 60)
             if (num && num >= 1 && num <= 60 && showEnVivoHabilitado) {
                 let datosTema = obtenerDatosCancion(num);
                 let urlYoutube = datosTema.url_youtube || "";
@@ -392,8 +393,10 @@
                 if (!subColSnap.empty) {
                     subColSnap.forEach(d => {
                         let numLimpio = parseInt(d.id, 10);
-                        temasDelRepertorioActivo[String(numLimpio)] = d.data();
-                        temasDelRepertorioActivo[d.id] = d.data();
+                        if (!isNaN(numLimpio) && numLimpio >= 1 && numLimpio <= 60) {
+                            temasDelRepertorioActivo[String(numLimpio)] = d.data();
+                            temasDelRepertorioActivo[d.id] = d.data();
+                        }
                     });
                     return;
                 }
@@ -404,8 +407,10 @@
                     if (data.canciones && typeof data.canciones === 'object') {
                         Object.keys(data.canciones).forEach(k => {
                             let numLimpio = parseInt(k, 10);
-                            temasDelRepertorioActivo[String(numLimpio)] = data.canciones[k];
-                            temasDelRepertorioActivo[k] = data.canciones[k];
+                            if (!isNaN(numLimpio) && numLimpio >= 1 && numLimpio <= 60) {
+                                temasDelRepertorioActivo[String(numLimpio)] = data.canciones[k];
+                                temasDelRepertorioActivo[k] = data.canciones[k];
+                            }
                         });
                     }
                 }
@@ -430,13 +435,12 @@
                     if (datosEstado.fotos_banner) iniciarCarruselFotos(datosEstado.fotos_banner);
                     if (datosEstado.ultima_cancion_tocada) ultimaCancionInicial = datosEstado.ultima_cancion_tocada;
                     
-                    // Links de audios especiales
                     linkPreShowGlobal = datosEstado.link_preshow || "";
                     linkDespedidaGlobal = datosEstado.link_despedida || "";
                     linkFestejoLineaGlobal = datosEstado.link_festejo_linea || "";
                     linkFestejoBingoGlobal = datosEstado.link_festejo_bingo || "";
 
-                    numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
+                    numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10))).filter(n => Number(n) >= 1 && Number(n) <= 60);
                     actualizarBannerAvisoFlash(datosEstado.aviso_flash);
                 }
 
@@ -496,7 +500,7 @@
                     const estado = docSnap.data();
                     showEnVivoHabilitado = (estado.show_iniciado === true);
                     modoTransmisionActual = estado.modo_transmision || "automatico";
-                    numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10)));
+                    numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10))).filter(n => Number(n) >= 1 && Number(n) <= 60);
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
                     if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
                     if (estado.fotos_banner) iniciarCarruselFotos(estado.fotos_banner);
@@ -568,29 +572,43 @@
             });
         } catch(e) {}
 
+        // SELECTOR DE TEMAS SIN NÚMEROS (1 A 60)
         function actualizarSelectorCancionesDinamico() {
             const select = document.getElementById('selectCanciones'); if (!select) return;
-            const valorPrevio = select.value; select.innerHTML = '<option value="">-- Elegir Tema --</option>';
+            const valorPrevio = select.value; 
+            select.innerHTML = '<option value="">-- Elegir Tema Musical --</option>';
             let listaFormateada = [];
             
             for (let i = 1; i <= 60; i++) {
                 let datos = obtenerDatosCancion(i);
                 if (datos && datos.nombre) {
-                    let nombreLimpio = String(datos.nombre).replace(/^\d+[\s-:=]*/, '');
-                    listaFormateada.push({ codigo: String(i), nombreTema: `#${String(i).padStart(2, '0')} - ${nombreLimpio}` });
+                    let nombreLimpio = String(datos.nombre).replace(/^\d+[\s-:=]*/, '').trim();
+                    listaFormateada.push({ 
+                        codigo: String(i), 
+                        tituloSolo: nombreLimpio 
+                    });
                 }
             }
 
+            listaFormateada.sort((a, b) => a.tituloSolo.localeCompare(b.tituloSolo));
+
             listaFormateada.forEach(item => {
-                let option = document.createElement('option'); option.value = item.codigo;
+                let option = document.createElement('option'); 
+                option.value = item.codigo;
+                
                 if (cancionesEnEsperaEscenario.includes(item.codigo) || numerosSalidos.includes(item.codigo)) {
-                    option.innerText = `❌ ${item.nombreTema}`; option.disabled = true; option.style.color = "#ff4d4d";
+                    option.innerText = `❌ ${item.tituloSolo}`; 
+                    option.disabled = true; 
+                    option.style.color = "#ff4d4d";
                 } else { 
-                    option.innerText = item.nombreTema; 
+                    option.innerText = item.tituloSolo; 
                 }
                 select.appendChild(option);
             });
-            if (valorPrevio && !cancionesEnEsperaEscenario.includes(String(valorPrevio)) && !numerosSalidos.includes(String(valorPrevio))) { select.value = valorPrevio; }
+
+            if (valorPrevio && !cancionesEnEsperaEscenario.includes(String(valorPrevio)) && !numerosSalidos.includes(String(valorPrevio))) { 
+                select.value = valorPrevio; 
+            }
         }
 
         function mezclarArreglo(array) {
@@ -676,23 +694,29 @@
             renderizarBandejaTrivias(); renderizarCatalogoCanjeDinamico(); actualizarIndicadorSobres();
         };
 
-        // GENERACIÓN DEL CARTÓN OFICIAL (15 NÚMEROS APASADOS)
+        // GENERACIÓN DEL CARTÓN (LÍMITE ESTRICTO: 1 A 60)
         async function generarYMostrarCartonFinal(nombre, dniOriginal) {
             document.getElementById('cajaCargando').style.display = "block";
             document.getElementById('cajaCargando').innerHTML = "<p>Cargando tu sala de juego...</p>";
 
-            let codigosDisponibles = [];
-            let totalCancionesRepertorio = Object.keys(temasDelRepertorioActivo).length;
-            let maxTotal = totalCancionesRepertorio > 0 ? totalCancionesRepertorio : 60;
-            
-            for(let i = 1; i <= maxTotal; i++) codigosDisponibles.push(String(i));
-            
+            // 15 números para formato oficial apaisado
             tamañoCartonDinamico = 15;
+
+            // BOLSA ESTRICTA: SOLO NÚMEROS DEL 1 AL 60
+            let codigosDisponibles = [];
+            for(let i = 1; i <= 60; i++) codigosDisponibles.push(String(i));
 
             const docExistenteSnap = await getDoc(doc(db, "cartones_vendidos", dniOriginal));
             if(docExistenteSnap.exists()) {
-                asignarEIniciarCarton(docExistenteSnap.data());
-                return;
+                let datosExistentes = docExistenteSnap.data();
+                let nums = (datosExistentes.numeros || []).map(Number);
+                
+                // VERIFICACIÓN DE SEGURIDAD: Si tiene números mayores a 60, se regeneran
+                let tieneNumerosInvalidos = nums.some(n => n > 60 || n < 1 || isNaN(n));
+                if (!tieneNumerosInvalidos && nums.length === 15) {
+                    asignarEIniciarCarton(datosExistentes);
+                    return;
+                }
             }
 
             let puntosPrevios = 0;
@@ -701,7 +725,8 @@
                 if (perfilSnap.exists()) puntosPrevios = perfilSnap.data().puntos || 0;
             } catch(e){}
 
-            let bolsa = [...codigosDisponibles].sort(() => Math.random() - 0.5).slice(0, tamañoCartonDinamico);
+            // Mezclamos del 1 al 60 y extraemos 15
+            let bolsa = [...codigosDisponibles].sort(() => Math.random() - 0.5).slice(0, 15);
             bolsa.sort((a,b) => Number(a) - Number(b));
 
             let proxNro = 1;
@@ -723,11 +748,11 @@
 
         function asignarEIniciarCarton(data) {
             nroCartonAsignado = data.nro_carton; 
-            misNumeros = (data.numeros || []).map(n => String(parseInt(n, 10)));
+            misNumeros = (data.numeros || []).map(n => String(parseInt(n, 10))).filter(n => Number(n) >= 1 && Number(n) <= 60);
             marcadosManualmente = (data.marcados_manuales || []).map(n => String(parseInt(n, 10)));
-            misFiguritasColeccionadas = (data.album_pegadas || []).map(Number);
-            misFiguritasDoradas = (data.album_doradas || []).map(Number);
-            misRepetidas = (data.repetidas || []).map(Number);
+            misFiguritasColeccionadas = (data.album_pegadas || []).map(Number).filter(n => n >= 1 && n <= 60);
+            misFiguritasDoradas = (data.album_doradas || []).map(Number).filter(n => n >= 1 && n <= 60);
+            misRepetidas = (data.repetidas || []).map(Number).filter(n => n >= 1 && n <= 60);
             sobresPendientesParaAbrir = data.sobres_pendientes || 0;
             puntosTriviaJugador = data.puntos || 0;
             triviasRespondidasIds = (data.trivias_respondidas || []).map(n => String(parseInt(n, 10)));
@@ -765,9 +790,9 @@
             onSnapshot(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), (docSnap) => {
                 if(docSnap.exists()) {
                     let d = docSnap.data();
-                    misFiguritasColeccionadas = (d.album_pegadas || []).map(Number);
-                    misFiguritasDoradas = (d.album_doradas || []).map(Number);
-                    misRepetidas = (d.repetidas || []).map(Number);
+                    misFiguritasColeccionadas = (d.album_pegadas || []).map(Number).filter(n => n >= 1 && n <= 60);
+                    misFiguritasDoradas = (d.album_doradas || []).map(Number).filter(n => n >= 1 && n <= 60);
+                    misRepetidas = (d.repetidas || []).map(Number).filter(n => n >= 1 && n <= 60);
                     sobresPendientesParaAbrir = d.sobres_pendientes || 0;
                     puntosTriviaJugador = d.puntos || 0;
                     triviasRespondidasIds = (d.trivias_respondidas || []).map(n => String(parseInt(n, 10)));
@@ -797,7 +822,7 @@
             renderizarMatrizNumerosYVerificarPremios({lista_numeros_salidos: numerosSalidos});
         };
 
-        // IMPRESIÓN DEL CARTÓN EN APAISADO (15 NÚMEROS - 5 COLUMNAS)
+        // IMPRESIÓN DEL CARTÓN EN APAISADO (15 NÚMEROS: 1 A 60)
         window.imprimirCartonPapel = function() {
             let nombreUser = infoUsuarioLogueado.nombre || "Participante";
             let nroCartonTxt = String(nroCartonAsignado || "000").padStart(3, '0');
@@ -859,7 +884,7 @@
             ventanaImpresion.document.close();
         };
 
-        // MATRIZ DE NÚMEROS (5 COLUMNAS PARA 15 NÚMEROS)
+        // MATRIZ DE NÚMEROS (1 A 60)
         function renderizarMatrizNumerosYVerificarPremios(estadoGlobal) {
             const contenedor = document.getElementById('grillaNumerosBingo'); 
             if (!contenedor) return;
@@ -914,7 +939,7 @@
                 return;
             }
 
-            // LÍNEA (CON AUDIOS Y CONFETI)
+            // LÍNEA
             let bingoYaCantadoGlobal = (estadoGlobal.bingo_ganado === true || yaCanteBingo);
             let totalLineasHabilitadasMax = Number(estadoGlobal.lineas_premiadas_max || 1);
             let lineasActualesGlobales = Number(estadoGlobal.contador_lineas_ganadas || 0);
@@ -944,7 +969,7 @@
                 alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste la Línea #${nroLineaOrden} y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
             }
 
-            // BINGO (CON AUDIOS Y CONFETI)
+            // BINGO
             if (aciertosReales === misNumeros.length && misNumeros.length > 0 && !yaCanteBingo && !estadoGlobal.bingo_ganado) {
                 yaCanteBingo = true; 
                 try { 
@@ -1098,7 +1123,7 @@
             }
         }
 
-        // ÁLBUM DE FIGURITAS (2 CIFRAS)
+        // ÁLBUM DE FIGURITAS (1 A 60)
         function renderizarPaginaAlbum() {
             const grilla = document.getElementById('grillaAlbumFiguritas'); const lblPagina = document.getElementById('lblPaginaActual');
             const lblProgreso = document.getElementById('lblProgresoAlbum'); const bloquePuntosBanner = document.getElementById('bloqueBotonCanje');
@@ -1671,7 +1696,7 @@
                 </div>
             </div>
             
-            <!-- GRILLA APASADA (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
+            <!-- GRILLA APASADA DEL CARTÓN (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
             <div class="card-caja">
                 <button class="btn-modo-toggle" id="btnToggleModoMarcado" onclick="toggleModoMarcado()">Modo: Automático ⚡ (Cambiar a Manual ✍️)</button>
                 <div class="grilla-bingo-viva" id="grillaNumerosBingo"></div>
@@ -1679,7 +1704,7 @@
 
             <div class="card-caja">
                 <h2>🎵 Pedir un Tema Musical</h2>
-                <select id="selectCanciones"><option value="">-- Elegir Tema --</option></select>
+                <select id="selectCanciones"><option value="">-- Elegir Tema Musical --</option></select>
                 <button class="btn-accion" id="btnEnviarPedido" onclick="solicitarTemaShow()">Enviar Tema y Ganar Sobre 🚀</button>
                 <p id="lblMensajeBloqueo" style="display:none; text-align:center; font-size:0.8rem; font-weight:bold; margin-top: 8px;"></p>
             </div>
