@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJ Fiesta - Pedí tu tema y Participá</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #fff; 
+            margin: 0; 
+            padding: 20px; 
+            text-align: center;
+        }
+        .container { max-width: 500px; margin: auto; }
+        .card { 
+            background: #1e1e1e; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+        }
+        input, button, select { 
+            width: 100%; 
+            padding: 14px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            border: none; 
+            font-size: 16px; 
+            box-sizing: border-box;
+        }
+        input, select { background: #2a2a2a; color: #fff; }
+        button { background: #1db954; color: white; font-weight: bold; cursor: pointer; }
+        button:hover { background: #1ed760; }
+        .btn-opcion { background: #7f00ff; margin: 8px 0; font-size: 18px; }
+        .seccion { display: none; }
+        .activa { display: block; }
+        #mensaje { color: #1db954; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🎵 Fiesta Interactiva 🎉</h1>
+
+        <!-- Identificación del usuario -->
+        <div class="card">
+            <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Juan)">
+        </div>
+
+        <!-- SECCIÓN 1: PEDIR MÚSICA -->
+        <div id="seccionMusica" class="seccion activa">
+            <div class="card">
+                <h2>Pedí tu tema</h2>
+                <input type="text" id="busquedaTema" placeholder="Artista y Tema (Ej: Soda Stereo)">
+                <button onclick="enviarTema()">Enviar a la Cola 🎶</button>
+                <p id="mensaje"></p>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: TRIVIA FLASH -->
+        <div id="seccionTrivia" class="seccion">
+            <div class="card">
+                <h2>🧠 ¡Pregunta Flash!</h2>
+                <p id="textoTrivia" style="font-size: 18px; color: #ffeb3b;">¿De qué año es este tema?</p>
+                <button class="btn-opcion" onclick="enviarRespuestaTrivia(1)">Opción 1</button>
+                <button class="btn-opcion" onclick="enviarRespuestaTrivia(2)">Opción 2</button>
+                <button class="btn-opcion" onclick="enviarRespuestaTrivia(3)">Opción 3</button>
+                <p id="mensajeTrivia" style="color: #00e676; font-weight: bold;"></p>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 3: VOTACIÓN DE KARAOKE -->
+        <div id="seccionVotacion" class="seccion">
+            <div class="card">
+                <h2>🎤 ¿Quién cantó mejor?</h2>
+                <p style="color: #aaa;">Votá a tu favorito de la noche:</p>
+                <div id="listaCandidatos">
+                    <!-- Se llena dinámicamente -->
+                    <button class="btn-opcion" onclick="votarCantante('Participante A')">Participante A</button>
+                    <button class="btn-opcion" onclick="votarCantante('Participante B')">Participante B</button>
+                </div>
+                <p id="mensajeVoto" style="color: #ff5252; font-weight: bold;"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script con Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            authDomain: "family-game-show.firebaseapp.com",
+            projectId: "family-game-show",
+            storageBucket: "family-game-show.firebasestorage.app",
+            messagingSenderId: "509983775898",
+            appId: "1:509983775898:web:47695f5b312553d9bd1323",
+            measurementId: "G-P941BVG2ST"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 1. Escuchar el modo interactivo desde Firestore (fiesta_musical/modo_interactivo -> campo "que ve la gente")
+        onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
+            if (docSnap.exists()) {
+                const modo = docSnap.data()["que ve la gente"];
+                cambiarSeccion(modo);
+            }
+        });
+
+        function cambiarSeccion(modo) {
+            document.querySelectorAll('.seccion').forEach(el => el.classList.remove('activa'));
+            
+            if (modo === "trivia") {
+                document.getElementById('seccionTrivia').classList.add('activa');
+            } else if (modo === "votacion") {
+                document.getElementById('seccionVotacion').classList.add('activa');
+            } else {
+                // Por defecto o si dice "musica" / vacío
+                document.getElementById('seccionMusica').classList.add('activa');
+            }
+        }
+
+        // 2. Enviar tema musical a Firestore
+        window.enviarTema = async function() {
+            const nombre = document.getElementById('nombreUsuario').value.trim();
+            const tema = document.getElementById('busquedaTema').value.trim();
+
+            if (!nombre || !tema) {
+                alert("Por favor completa tu nombre y el tema antes de enviar.");
+                return;
+            }
+
+            try {
+                // Guardar en la colección cola_reproduccion
+                await addDoc(collection(db, "fiesta_musical", "cola_reproduccion"), {
+                    cancion: tema,
+                    pedidoPor: nombre,
+                    timestamp: serverTimestamp()
+                });
+
+                document.getElementById('mensaje').innerText = "¡Tema enviado con éxito a la cola! 🎶";
+                document.getElementById('busquedaTema').value = '';
+            } catch (error) {
+                console.error("Error al enviar tema: ", error);
+                alert("Hubo un error al enviar el tema.");
+            }
+        }
+
+        window.enviarRespuestaTrivia = function(opcion) {
+            const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
+            document.getElementById('mensajeTrivia').innerText = `¡Respuesta ${opcion} registrada, ${nombre}! 🧠`;
+        }
+
+        window.votarCantante = function(candidato) {
+            const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
+            document.getElementById('mensajeVoto').innerText = `¡Voto registrado para ${candidato}! 🎤`;
+        }
+    </script>
+</body>
+</html>

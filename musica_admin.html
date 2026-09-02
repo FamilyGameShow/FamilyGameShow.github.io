@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - DJ Interactivo</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #fff; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        .container { max-width: 900px; margin: auto; }
+        .card { 
+            background: #1e1e1e; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+        }
+        h2 { color: #1db954; border-bottom: 2px solid #333; padding-bottom: 8px; margin-top: 0; }
+        ul, ol { padding-left: 20px; }
+        li { background: #2a2a2a; margin: 8px 0; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        button { 
+            background: #1db954; 
+            color: white; 
+            border: none; 
+            padding: 10px 18px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 14px;
+        }
+        button:hover { background: #1ed760; }
+        button.skip { background: #e91e63; }
+        button.skip:hover { background: #f06292; }
+        
+        .waveform-box { background: #000; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px; }
+        .timeline { width: 100%; height: 50px; background: #222; position: relative; border-radius: 6px; margin: 15px 0; overflow: hidden; }
+        .marker { position: absolute; top: 0; width: 4px; height: 100%; cursor: ew-resize; }
+        .marker-start { left: 10%; background: #00e676; }
+        .marker-end { left: 90%; background: #ff5252; }
+        .wave-sim { width: 100%; height: 100%; background: repeating-linear-gradient(90deg, #333, #333 2px, transparent 2px, transparent 6px); opacity: 0.5; }
+        
+        .current-track-info { font-size: 18px; font-weight: bold; color: #ffeb3b; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🎛️ Panel de Control - DJ Fiesta Admin</h1>
+
+        <!-- Reproductor Actual y Edición de Puntos de Corte -->
+        <div class="card">
+            <h2>Sonando Ahora & Ajuste de Cuentas (Cortes)</h2>
+            <div class="current-track-info" id="temaActual">▶️ Soda Stereo - Persiana Americana</div>
+            <p style="color: #aaa; font-size: 14px;">Ajustá los marcadores para evitar charlas, silencios o aplausos largos al inicio y armar un crossfade limpio.</p>
+            
+            <div class="waveform-box">
+                <div class="timeline">
+                    <div class="wave-sim"></div>
+                    <!-- Marcador Verde: Inicio real del beat -->
+                    <div class="marker marker-start" title="Inicio del Beat"></div>
+                    <!-- Marcador Rojo: Fin y Fade Out -->
+                    <div class="marker marker-end" title="Fin de Transición"></div>
+                </div>
+                <small>🟢 <span style="color:#00e676">Verde: Inicio del beat</span> | 🔴 <span style="color:#ff5252">Rojo: Salida / Crossfade</span></small>
+            </div>
+            <br>
+            <button onclick="siguienteTema()" class="skip">▶️ Reproducir Siguiente Tema & Disparar Pantalla</button>
+        </div>
+
+        <!-- Cola de Espera -->
+        <div class="card">
+            <h2>🎵 Cola de Espera (Pedidos de la Gente)</h2>
+            <ul id="listaCola">
+                <li><span>1. Los Auténticos Decadentes - La Guitarra</span> <small style="color:#aaa;">Pedido por: Julieta</small></li>
+                <li><span>2. Wos - Arrancármelo</span> <small style="color:#aaa;">Pedido por: Lucas</small></li>
+            </ul>
+        </div>
+
+        <!-- Ranking de Participantes -->
+        <div class="card">
+            <h2>🏆 Top Fiesteros (Ranking de Participación)</h2>
+            <ol id="rankingFiesteros">
+                <li><strong>Lucas</strong> - 5 temas pedidos 🔥</li>
+                <li><strong>Julieta</strong> - 3 temas pedidos 🎸</li>
+                <li><strong>Marcos</strong> - 2 temas pedidos 🍻</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function siguienteTema() {
+            alert("¡Avanzando al siguiente tema! Se actualizará la pantalla del escenario y el ranking en Firebase.");
+            // Lógica futura para actualizar Firebase cuando saltes de tema
+        }
+    </script>
+</body>
+</html>
