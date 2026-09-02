@@ -44,12 +44,10 @@
     <div class="container">
         <h1>🎵 Fiesta Interactiva 🎉</h1>
 
-        <!-- Identificación del usuario -->
         <div class="card">
             <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
         </div>
 
-        <!-- SECCIÓN 1: PEDIR MÚSICA -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
                 <h2>Pedí tu tema</h2>
@@ -59,7 +57,6 @@
             </div>
         </div>
 
-        <!-- SECCIÓN 2: TRIVIA FLASH -->
         <div id="seccionTrivia" class="seccion">
             <div class="card">
                 <h2>🧠 ¡Pregunta Flash!</h2>
@@ -71,7 +68,6 @@
             </div>
         </div>
 
-        <!-- SECCIÓN 3: VOTACIÓN DE KARAOKE -->
         <div id="seccionVotacion" class="seccion">
             <div class="card">
                 <h2>🎤 ¿Quién cantó mejor?</h2>
@@ -85,7 +81,6 @@
         </div>
     </div>
 
-    <!-- Script con Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, onSnapshot, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -103,7 +98,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 1. Escuchar el modo interactivo desde Firestore
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -124,7 +118,6 @@
             }
         }
 
-        // 2. Enviar tema musical a Firestore dentro de la colección cola_reproduccion
         window.enviarTema = async function() {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             const tema = document.getElementById('busquedaTema').value.trim();
