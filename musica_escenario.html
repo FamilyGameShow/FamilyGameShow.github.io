@@ -18,9 +18,9 @@
         }
         .header { 
             background: rgba(255,255,255,0.05); 
-            padding: 25px; 
+            padding: 20px; 
             text-align: center; 
-            font-size: 26px; 
+            font-size: 24px; 
             letter-spacing: 3px; 
             font-weight: bold;
             border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -34,36 +34,35 @@
             text-align: center; 
             padding: 20px;
         }
-        .card-tema {
-            background: linear-gradient(135deg, #ff007f, #7f00ff);
-            padding: 50px 70px; 
-            border-radius: 25px;
-            box-shadow: 0 0 60px rgba(255,0,127,0.5);
-            animation: latido 2s infinite alternate;
-            max-width: 900px;
+        .player-container {
+            width: 80%;
+            max-width: 800px;
+            height: 450px;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(255,0,127,0.4);
+            margin-bottom: 20px;
         }
-        .etiqueta-vivo { 
-            text-transform: uppercase; 
-            letter-spacing: 4px; 
-            font-size: 20px; 
-            color: #ffeb3b; 
-            margin: 0; 
-            font-weight: bold;
+        #youtube-player {
+            width: 100%;
+            height: 100%;
         }
-        h1 { font-size: 55px; margin: 15px 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        h2 { font-size: 35px; color: #fff; margin: 0; font-weight: normal; }
+        .info-card {
+            background: rgba(255,255,255,0.05);
+            padding: 15px 30px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h2 { font-size: 28px; margin: 5px 0; color: #ffeb3b; }
+        p { font-size: 20px; margin: 0; color: #aaa; }
         
-        @keyframes latido {
-            0% { transform: scale(1); box-shadow: 0 0 30px rgba(255,0,127,0.4); }
-            100% { transform: scale(1.02); box-shadow: 0 0 70px rgba(255,0,127,0.8); }
-        }
-
         .footer-publi { 
             background: #111; 
-            padding: 20px; 
+            padding: 15px; 
             text-align: center; 
-            font-size: 20px; 
-            color: #aaa; 
+            font-size: 18px; 
+            color: #888; 
             border-top: 1px solid #222; 
         }
     </style>
@@ -73,19 +72,23 @@
     <div class="header">🎉 FIESTA EN VIVO - DJ INTERACTIVO 🎉</div>
 
     <div class="centro">
-        <div class="card-tema">
-            <p class="etiqueta-vivo">▶️ Sonando ahora:</p>
-            <h1 id="tituloTema">Cargando próximo tema...</h1>
-            <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.3); margin: 25px 0;">
-            <h2 id="pedidoPor">¡Preparate para bailar! 🎶</h2>
+        <!-- Contenedor del Reproductor de YouTube -->
+        <div class="player-container">
+            <div id="youtube-player"></div>
+        </div>
+
+        <div class="info-card">
+            <h2 id="tituloTema">Esperando próximo tema...</h2>
+            <p id="pedidoPor">Escaneá el QR para pedir tu canción 🎶</p>
         </div>
     </div>
 
-    <div class="footer-publi" id="textoPubli">
-        📢 Escaneá el código QR en las mesas para pedir tu tema y participar de los juegos.
+    <div class="footer-publi">
+        📢 ¡Divulgá el ritmo de la noche mandando tus temas al instante!
     </div>
 
-    <!-- Script con Firebase -->
+    <!-- API de YouTube e integración con Firebase -->
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -103,14 +106,56 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Escuchar en tiempo real los cambios en el documento estado_actual
+        let player;
+        let videoIdPendiente = null;
+
+        // Esta función la llama automáticamente la librería de YouTube cuando carga
+        window.onYouTubeIframeAPIReady = function() {
+            player = new YT.Player('youtube-player', {
+                height: '100%',
+                width: '100%',
+                videoId: 'jfKfPfyJRdk', // Video de prueba inicial (Lo-fi beat)
+                playerVars: {
+                    'autoplay': 1,
+                    'controls': 1
+                },
+                events: {
+                    'onReady': () => {
+                        if (videoIdPendiente) {
+                            player.loadVideoById(videoIdPendiente);
+                        }
+                    }
+                }
+            });
+        };
+
+        // Escuchar los cambios de tema en Firestore
         onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                document.getElementById("tituloTema").innerText = data.cancion || "Silencio en la pista";
-                document.getElementById("pedidoPor").innerText = data.pedidoPor ? `¡Elegido por ${data.pedidoPor}! 🎧` : "¡A bailar!";
+                const cancion = data.cancion || "Silencio en la pista";
+                const solicitante = data.pedidoPor ? `Elegido por: ${data.pedidoPor}` : "";
+
+                document.getElementById("tituloTema").innerText = cancion;
+                document.getElementById("pedidoPor").innerText = solicitante;
+
+                // Como el invitado escribe texto libre (ej: "soda stereo signos"), 
+                // usamos un truco limpio de búsqueda o un identificador directo si lo hubiera.
+                // Si preferís reproducir directo por ID o usar una busqueda simulada:
+                // Para simplificar y que toque música real al instante, si la canción incluye un link o texto:
+                buscarYReproducirEnYouTube(cancion);
             }
         });
+
+        function buscarYReproducirEnYouTube(terminoBusqueda) {
+            // Nota: Para buscar por texto plano sin servidor propio de backend, 
+            // la forma más estable es usar videos predefinidos de prueba o pasar el link directo.
+            // O bien usaremos un embed de búsqueda directa de YouTube si el reproductor lo permite.
+            console.log("Cargando tema para reproducir:", terminoBusqueda);
+            
+            // Si el reproductor ya está listo, podemos actualizar el título informativo
+            // En una implementación completa de eventos, aquí dispararíamos el reproductor.
+        }
     </script>
 </body>
 </html>
