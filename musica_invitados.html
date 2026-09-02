@@ -77,7 +77,6 @@
                 <h2>🎤 ¿Quién cantó mejor?</h2>
                 <p style="color: #aaa;">Votá a tu favorito de la noche:</p>
                 <div id="listaCandidatos">
-                    <!-- Se llena dinámicamente -->
                     <button class="btn-opcion" onclick="votarCantante('Participante A')">Participante A</button>
                     <button class="btn-opcion" onclick="votarCantante('Participante B')">Participante B</button>
                 </div>
@@ -104,11 +103,12 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 1. Escuchar el modo interactivo desde Firestore (fiesta_musical/modo_interactivo -> campo "modo")
+        // 1. Escuchar el modo interactivo desde Firestore leyendo el campo limpio "modo"
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
-                const modo = docSnap.data()["que ve la gente"];
-                cambiarSeccion(modo);
+                const data = docSnap.data();
+                const modoActual = data.modo || "musica";
+                cambiarSeccion(modoActual);
             }
         });
 
@@ -120,12 +120,11 @@
             } else if (modo === "votacion") {
                 document.getElementById('seccionVotacion').classList.add('activa');
             } else {
-                // Por defecto o si dice "musica" / vacío
                 document.getElementById('seccionMusica').classList.add('activa');
             }
         }
 
-        // 2. Enviar tema musical a Firestore
+        // 2. Enviar tema musical a Firestore dentro de la colección cola_reproduccion
         window.enviarTema = async function() {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             const tema = document.getElementById('busquedaTema').value.trim();
@@ -136,7 +135,6 @@
             }
 
             try {
-                // Guardar en la colección cola_reproduccion
                 await addDoc(collection(db, "fiesta_musical", "cola_reproduccion"), {
                     cancion: tema,
                     pedidoPor: nombre,
