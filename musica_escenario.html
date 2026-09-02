@@ -107,55 +107,34 @@
         const db = getFirestore(app);
 
         let player;
-        let videoIdPendiente = null;
+        let videoIdPendiente = "jfKfPfyJRdk"; // Video por defecto
 
-        // Esta función la llama automáticamente la librería de YouTube cuando carga
         window.onYouTubeIframeAPIReady = function() {
             player = new YT.Player('youtube-player', {
                 height: '100%',
                 width: '100%',
-                videoId: 'jfKfPfyJRdk', // Video de prueba inicial (Lo-fi beat)
+                videoId: videoIdPendiente,
                 playerVars: {
                     'autoplay': 1,
                     'controls': 1
-                },
-                events: {
-                    'onReady': () => {
-                        if (videoIdPendiente) {
-                            player.loadVideoById(videoIdPendiente);
-                        }
-                    }
                 }
             });
         };
 
-        // Escuchar los cambios de tema en Firestore
+        // Escuchar cambios en el documento estado_actual usando los nombres exactos de tus campos
         onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const cancion = data.cancion || "Silencio en la pista";
-                const solicitante = data.pedidoPor ? `Elegido por: ${data.pedidoPor}` : "";
-
+                const cancion = data.temasonando || "Silencio en la pista";
+                
                 document.getElementById("tituloTema").innerText = cancion;
-                document.getElementById("pedidoPor").innerText = solicitante;
+                document.getElementById("pedidoPor").innerText = "🎶 Sonando en vivo en el salón";
 
-                // Como el invitado escribe texto libre (ej: "soda stereo signos"), 
-                // usamos un truco limpio de búsqueda o un identificador directo si lo hubiera.
-                // Si preferís reproducir directo por ID o usar una busqueda simulada:
-                // Para simplificar y que toque música real al instante, si la canción incluye un link o texto:
-                buscarYReproducirEnYouTube(cancion);
+                // Si querés buscar o cargar dinámicamente un video de YouTube basado en el texto de `temasonando`
+                // (Nota: Como YouTube requiere un ID de video específico para el embed, acá podés mapearlo o usar una búsqueda directa).
+                console.log("Nuevo tema sonando:", cancion);
             }
         });
-
-        function buscarYReproducirEnYouTube(terminoBusqueda) {
-            // Nota: Para buscar por texto plano sin servidor propio de backend, 
-            // la forma más estable es usar videos predefinidos de prueba o pasar el link directo.
-            // O bien usaremos un embed de búsqueda directa de YouTube si el reproductor lo permite.
-            console.log("Cargando tema para reproducir:", terminoBusqueda);
-            
-            // Si el reproductor ya está listo, podemos actualizar el título informativo
-            // En una implementación completa de eventos, aquí dispararíamos el reproductor.
-        }
     </script>
 </body>
 </html>
