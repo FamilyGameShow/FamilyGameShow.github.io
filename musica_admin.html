@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - DJ Interactivo</title>
+    <title>Panel Admin - DJ Interactivo con Ondas</title>
+    <!-- Importamos la librería Wavesurfer.js para dibujar el espectrograma de audio -->
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -37,13 +39,10 @@
         button.skip { background: #e91e63; }
         button.skip:hover { background: #f06292; }
         
-        .waveform-box { background: #000; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px; }
-        .timeline { width: 100%; height: 50px; background: #222; position: relative; border-radius: 6px; margin: 15px 0; overflow: hidden; }
-        .marker { position: absolute; top: 0; width: 4px; height: 100%; cursor: ew-resize; }
-        .marker-start { left: 10%; background: #00e676; }
-        .marker-end { left: 90%; background: #ff5252; }
-        .wave-sim { width: 100%; height: 100%; background: repeating-linear-gradient(90deg, #333, #333 2px, transparent 2px, transparent 6px); opacity: 0.5; }
+        .waveform-box { background: #000; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        #waveform { width: 100%; margin: 10px 0; }
         
+        .controles-audio { display: flex; gap: 10px; margin-top: 15px; align-items: center; }
         .current-track-info { font-size: 18px; font-weight: bold; color: #ffeb3b; margin-bottom: 10px; }
     </style>
 </head>
@@ -52,32 +51,34 @@
     <div class="container">
         <h1>🎛️ Panel de Control - DJ Fiesta Admin</h1>
 
-        <!-- Reproductor Actual y Edición de Puntos de Corte -->
+        <!-- Reproductor Actual y Espectrograma Real -->
         <div class="card">
-            <h2>Sonando Ahora & Ajuste de Cuentas (Cortes)</h2>
-            <div class="current-track-info" id="temaActual">▶️ Soda Stereo - Persiana Americana</div>
-            <p style="color: #aaa; font-size: 14px;">Ajustá los marcadores para evitar charlas, silencios o aplausos largos al inicio y armar un crossfade limpio.</p>
+            <h2>Sonando Ahora & Cortes de Audio (Crossfade)</h2>
+            <div class="current-track-info" id="temaActual">▶️ Cargando estado actual...</div>
+            <p style="color: #aaa; font-size: 14px;">Visualizá la onda de audio del tema, saltá las partes lentas y marcá el inicio y fin de la transición.</p>
             
             <div class="waveform-box">
-                <div class="timeline">
-                    <div class="wave-sim"></div>
-                    <!-- Marcador Verde: Inicio real del beat -->
-                    <div class="marker marker-start" title="Inicio del Beat"></div>
-                    <!-- Marcador Rojo: Fin y Fade Out -->
-                    <div class="marker marker-end" title="Fin de Transición"></div>
+                <!-- Acá Wavesurfer dibuja el espectrograma real del tema -->
+                <div id="waveform"></div>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #aaa;">
+                    <span>🟢 Inicio del Beat (Cortar silencios)</span>
+                    <span>🔴 Fin / Crossfade</span>
                 </div>
-                <small>🟢 <span style="color:#00e676">Verde: Inicio del beat</span> | 🔴 <span style="color:#ff5252">Rojo: Salida / Crossfade</span></small>
+            </div>
+
+            <div class="controles-audio">
+                <button onclick="reproducirAudio()">▶️ Play / Pausa</button>
+                <button onclick="guardarCortes()" style="background: #2196F3;">💾 Guardar Puntos de Corte</button>
             </div>
             <br>
-            <button onclick="siguienteTema()" class="skip">▶️ Reproducir Siguiente Tema & Disparar Pantalla</button>
+            <button onclick="siguienteTema()" class="skip" style="width: 100%;">▶️ Reproducir Siguiente Tema & Disparar Pantalla</button>
         </div>
 
         <!-- Cola de Espera -->
         <div class="card">
             <h2>🎵 Cola de Espera (Pedidos de la Gente)</h2>
             <ul id="listaCola">
-                <li><span>1. Los Auténticos Decadentes - La Guitarra</span> <small style="color:#aaa;">Pedido por: Julieta</small></li>
-                <li><span>2. Wos - Arrancármelo</span> <small style="color:#aaa;">Pedido por: Lucas</small></li>
+                <li>Cargando cola de reproducción...</li>
             </ul>
         </div>
 
@@ -85,17 +86,105 @@
         <div class="card">
             <h2>🏆 Top Fiesteros (Ranking de Participación)</h2>
             <ol id="rankingFiesteros">
-                <li><strong>Lucas</strong> - 5 temas pedidos 🔥</li>
-                <li><strong>Julieta</strong> - 3 temas pedidos 🎸</li>
-                <li><strong>Marcos</strong> - 2 temas pedidos 🍻</li>
+                <li>Cargando ranking...</li>
             </ol>
         </div>
     </div>
 
-    <script>
-        function siguienteTema() {
-            alert("¡Avanzando al siguiente tema! Se actualizará la pantalla del escenario y el ranking en Firebase.");
-            // Lógica futura para actualizar Firebase cuando saltes de tema
+    <!-- Script con Firebase y Wavesurfer -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            authDomain: "family-game-show.firebaseapp.com",
+            projectId: "family-game-show",
+            storageBucket: "family-game-show.firebasestorage.app",
+            messagingSenderId: "509983775898",
+            appId: "1:509983775898:web:47695f5b312553d9bd1323",
+            measurementId: "G-P941BVG2ST"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Inicializar Wavesurfer para la onda de audio
+        let wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: '#555',
+            progressColor: '#1db954',
+            cursorColor: '#ffeb3b',
+            barWidth: 3,
+            barRadius: 3,
+            height: 80,
+            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' // Audio de prueba por defecto
+        });
+
+        window.reproducirAudio = function() {
+            wavesurfer.playPause();
+        }
+
+        window.guardarCortes = function() {
+            const tiempoActual = wavesurfer.getCurrentTime();
+            alert(`Punto de corte guardado en el segundo: ${tiempoActual.toFixed(2)}s 🎚️`);
+        }
+
+        // 1. Mostrar el tema actual sonando
+        onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                document.getElementById("temaActual").innerText = `▶️ ${data.cancion || "Sin reproductor activo"} (Pedido por: ${data.pedidoPor || "N/A"})`;
+            } else {
+                document.getElementById("temaActual").innerText = "▶️ No hay tema configurado.";
+            }
+        });
+
+        // 2. Escuchar la cola de reproducción en tiempo real
+        const qCola = query(collection(db, "fiesta_musical", "cola_reproduccion"), orderBy("timestamp", "asc"));
+        onSnapshot(qCola, (snapshot) => {
+            const listaCola = document.getElementById("listaCola");
+            listaCola.innerHTML = "";
+
+            if (snapshot.empty) {
+                listaCola.innerHTML = "<li>No hay temas en espera. ¡La cola está vacía!</li>";
+                return;
+            }
+
+            snapshot.forEach((docSnap) => {
+                const item = docSnap.data();
+                const li = document.createElement("li");
+                li.innerHTML = `<span>🎵 <strong>${item.cancion}</strong></span> <small style="color:#aaa;">Pedido por: ${item.pedidoPor}</small>`;
+                listaCola.appendChild(li);
+            });
+        });
+
+        // 3. Función para pasar al siguiente tema de la cola
+        window.siguienteTema = async function() {
+            try {
+                const querySnapshot = await getDocs(query(collection(db, "fiesta_musical", "cola_reproduccion"), orderBy("timestamp", "asc"), limit(1)));
+
+                if (querySnapshot.empty) {
+                    alert("No hay más temas en la cola de espera.");
+                    return;
+                }
+
+                const primerDoc = querySnapshot.docs[0];
+                const datosTema = primerDoc.data();
+
+                // Actualizar estado actual para la pantalla de escenario
+                await setDoc(doc(db, "fiesta_musical", "estado_actual"), {
+                    cancion: datosTema.cancion,
+                    pedidoPor: datosTema.pedidoPor
+                });
+
+                // Borrar el tema de la cola de pendientes
+                await deleteDoc(doc(db, "fiesta_musical", "cola_reproduccion", primerDoc.id));
+
+            } catch (error) {
+                console.error("Error al pasar al siguiente tema: ", error);
+                alert("Hubo un error al avanzar de tema.");
+            }
         }
     </script>
 </body>
