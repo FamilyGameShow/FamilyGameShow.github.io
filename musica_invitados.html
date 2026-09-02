@@ -46,14 +46,14 @@
 
         <!-- Identificación del usuario -->
         <div class="card">
-            <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Juan)">
+            <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
         </div>
 
         <!-- SECCIÓN 1: PEDIR MÚSICA -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
                 <h2>Pedí tu tema</h2>
-                <input type="text" id="busquedaTema" placeholder="Artista y Tema (Ej: Soda Stereo)">
+                <input type="text" id="busquedaTema" placeholder="Artista y Tema (Ej: Los Redondos)">
                 <button onclick="enviarTema()">Enviar a la Cola 🎶</button>
                 <p id="mensaje"></p>
             </div>
@@ -103,11 +103,11 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 1. Escuchar el modo interactivo desde Firestore leyendo el campo limpio "modo"
+        // 1. Escuchar el modo interactivo desde Firestore
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const modoActual = data.modo || "musica";
+                const modoActual = (data && data.modo && data.modo.trim() !== "") ? data.modo : "musica";
                 cambiarSeccion(modoActual);
             }
         });
