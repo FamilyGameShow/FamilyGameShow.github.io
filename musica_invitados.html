@@ -104,7 +104,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 1. Escuchar el modo interactivo desde Firestore (fiesta_musical/modo_interactivo -> campo "que ve la gente")
+        // 1. Escuchar el modo interactivo desde Firestore (fiesta_musical/modo_interactivo -> campo "modo")
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const modo = docSnap.data()["que ve la gente"];
