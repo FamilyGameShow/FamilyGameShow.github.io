@@ -50,11 +50,11 @@
             <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
         </div>
 
-        <!-- SECCIÓN MÚSICA (Carga dinámica desde sets_musicales de Firebase) -->
+        <!-- SECCIÓN MÚSICA (Carga dinámica desde sets_musicales) -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
                 <div id="nombreMomento">Cargando set musical...</div>
-                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema del set habilitado:</p>
+                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema del set:</p>
                 <div class="lista-container" id="listaOpcionesTema"></div>
                 <p id="mensaje"></p>
             </div>
@@ -101,7 +101,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Función para convertir "MM:SS" a segundos totales
+        // Función auxiliar para convertir "MM:SS" a segundos totales
         function convertirASegundos(tiempoStr) {
             const partes = tiempoStr.split(":");
             if (partes.length === 2) {
@@ -110,8 +110,8 @@
             return 0;
         }
 
-        // Leer el documento "jazz_covers" de la colección sets_musicales en Firebase
-        async function cargarSetJazz() {
+        // Cargar el set "jazz_covers" directo de Firebase
+        async function cargarSetMusical() {
             try {
                 const docRef = doc(db, "sets_musicales", "jazz_covers");
                 const docSnap = await getDoc(docRef);
@@ -163,7 +163,7 @@
                     document.getElementById('seccionVotacion').classList.add('activa');
                 } else {
                     document.getElementById('seccionMusica').classList.add('activa');
-                    cargarSetJazz(); // Carga las canciones de Firebase al entrar a música
+                    cargarSetMusical();
                 }
             }
         });
@@ -202,8 +202,8 @@
             document.getElementById('mensajeVoto').innerText = `¡Voto para ${cand} registrado! 🎤`;
         };
 
-        // Cargar por defecto al abrir
-        cargarSetJazz();
+        // Carga inicial
+        cargarSetMusical();
     </script>
 </body>
 </html>
