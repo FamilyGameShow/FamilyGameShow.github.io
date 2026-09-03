@@ -3,31 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fiesta Musical - Jazz Covers</title>
+    <title>Fiesta Musical - Pedidos</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
-        h1 { text-align: center; color: #1DB954; }
-        .lista-canciones { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; margin-top: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #1DB954; font-size: 1.5rem; margin-bottom: 20px; }
+        .lista-canciones { display: flex; flex-direction: column; gap: 8px; max-height: 75vh; overflow-y: auto; padding-right: 5px; }
         .item-cancion { display: flex; justify-content: space-between; align-items: center; background: #181818; padding: 12px 15px; border-radius: 8px; border: 1px solid #282828; }
         .info-tema { display: flex; gap: 15px; align-items: center; }
+        .tiempo { color: #1DB954; font-family: monospace; font-size: 0.9rem; min-width: 50px; font-weight: bold; }
         .titulo { font-size: 0.95rem; }
-        .btn-pedir { background: transparent; border: 1px solid #1DB954; color: #1DB954; padding: 6px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; }
-        .btn-pedir:hover { background: #1DB954; color: black; }
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1DB954; color: black; padding: 10px 20px; border-radius: 20px; font-weight: bold; display: none; }
+        .btn-pedir { background: transparent; border: 1px solid #1DB954; color: #1DB954; padding: 6px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; }
+        .btn-pedir:active, .btn-pedir:hover { background: #1DB954; color: black; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1DB954; color: black; padding: 10px 20px; border-radius: 20px; font-weight: bold; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .loading { text-align: center; color: #b3b3b3; margin-top: 40px; }
     </style>
 </head>
 <body>
 
-    <h1 id="tituloSet">Cargando set musical...</h1>
-    <div class="lista-canciones" id="listaCanciones"></div>
+    <h1 id="tituloSet">🎵 Cargando repertorio...</h1>
+    <div class="lista-canciones" id="listaCanciones">
+        <div class="loading">Conectando con la fiesta...</div>
+    </div>
 
-    <div class="toast" id="toastMensaje">¡Tema pedido con éxito!</div>
+    <div class="toast" id="toastMensaje">¡Tema agregado a la cola!</div>
 
+    <!-- SDK de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Usá las mismas credenciales de tu proyecto family-game-show
+        // Tus credenciales de Firebase (completalas con las de tu proyecto family-game-show)
         const firebaseConfig = {
             apiKey: "TU_API_KEY",
             authDomain: "family-game-show.firebaseapp.com",
@@ -42,23 +47,36 @@
 
         let urlVideoGlobal = "";
 
-        async function cargarDatos() {
+        async function cargarDatosDesdeFirebase() {
             try {
                 const docRef = doc(db, "sets_musicales", "jazz_covers");
                 const docSnap = await getDoc(docRef);
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    document.getElementById('tituloSet').innerText = `🎵 ${data.nombre || 'Jazz Covers'}`;
+                    document.getElementById('tituloSet').innerText = `🎵 ${data.nombre ? data.nombre.toUpperCase() : 'JAZZ COVERS'}`;
                     urlVideoGlobal = data.youtubeurl || "";
                     
-                    renderizarLista(data.canciones || []);
+                    const textoCrudo = data.canciones || "";
+                    const lineas = textoCrudo.trim().split('\n');
+                    const listaProcesada = [];
+
+                    lineas.forEach(linea => {
+                        const primerEspacio = linea.indexOf(' ');
+                        if (primerEspacio !== -1) {
+                            const tiempo = linea.substring(0, primerEspacio).trim();
+                            const titulo = linea.substring(primerEspacio + 1).trim();
+                            listaProcesada.push({ tiempo, titulo });
+                        }
+                    });
+
+                    renderizarLista(listaProcesada);
                 } else {
-                    document.getElementById('tituloSet').innerText = "No se encontró el repertorio.";
+                    document.getElementById('tituloSet').innerText = "No se encontró el set musical.";
                 }
             } catch (error) {
                 console.error("Error al leer Firestore:", error);
-                document.getElementById('tituloSet').innerText = "Error al cargar la base de datos.";
+                document.getElementById('tituloSet').innerText = "Error al conectar con la base de datos.";
             }
         }
 
@@ -66,30 +84,32 @@
             const contenedor = document.getElementById('listaCanciones');
             contenedor.innerHTML = '';
 
-            canciones.forEach((cancionTexto) => {
+            canciones.forEach((song) => {
                 const div = document.createElement('div');
                 div.className = 'item-cancion';
                 div.innerHTML = `
                     <div class="info-tema">
-                        <span class="titulo">${cancionTexto}</span>
+                        <span class="tiempo">[${song.tiempo}]</span>
+                        <span class="titulo">${song.titulo}</span>
                     </div>
-                    <button class="btn-pedir" onclick="pedirTema('${cancionTexto.replace(/'/g, "\\'")}')">Pedir</button>
+                    <button class="btn-pedir" onclick="pedirTema('${song.titulo.replace(/'/g, "\\'")}', '${song.tiempo}')">Pedir</button>
                 `;
                 contenedor.appendChild(div);
             });
         }
 
-        window.pedirTema = async function(cancion) {
+        window.pedirTema = async function(titulo, tiempo) {
             try {
+                // Guarda directamente en tu colección existente 'cola_reproduccion'
                 await addDoc(collection(db, "cola_reproduccion"), {
-                    cancion: cancion,
+                    cancion: `${titulo} [Min: ${tiempo}]`,
                     videoUrl: urlVideoGlobal,
                     pedidoPor: "Invitado",
                     timestamp: serverTimestamp(),
                     estado: "pendiente"
                 });
 
-                mostrarToast(`¡"${cancion}" agregado a la cola!`);
+                mostrarToast(`¡"${titulo}" agregado a la cola!`);
             } catch (error) {
                 console.error("Error al guardar el pedido:", error);
                 alert("No se pudo enviar el pedido.");
@@ -103,7 +123,7 @@
             setTimeout(() => { toast.style.display = 'none'; }, 3000);
         }
 
-        cargarDatos();
+        cargarDatosDesdeFirebase();
     </script>
 </body>
 </html>
