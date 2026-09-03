@@ -140,8 +140,8 @@
             }
         });
 
-        // 2. Escuchar la cola de reproducción en tiempo real
-        const qCola = query(collection(db, "fiesta_musical", "cola_reproduccion"), orderBy("timestamp", "asc"));
+        // 2. Escuchar la cola de reproducción en tiempo real desde la colección raíz
+        const qCola = query(collection(db, "cola_reproduccion"), orderBy("timestamp", "asc"));
         onSnapshot(qCola, (snapshot) => {
             const listaCola = document.getElementById("listaCola");
             listaCola.innerHTML = "";
@@ -159,33 +159,33 @@
             });
         });
 
-        // 3. Función para pasar al siguiente tema de la cola
-       window.siguienteTema = async function() {
-    try {
-        const querySnapshot = await getDocs(query(collection(db, "cola_reproduccion"), orderBy("timestamp", "asc"), limit(1)));
+        // 3. Función para pasar al siguiente tema de la cola raíz
+        window.siguienteTema = async function() {
+            try {
+                const querySnapshot = await getDocs(query(collection(db, "cola_reproduccion"), orderBy("timestamp", "asc"), limit(1)));
 
-        if (querySnapshot.empty) {
-            alert("No hay más temas en la cola de espera.");
-            return;
+                if (querySnapshot.empty) {
+                    alert("No hay más temas en la cola de espera.");
+                    return;
+                }
+
+                const primerDoc = querySnapshot.docs[0];
+                const datosTema = primerDoc.data();
+
+                // Actualizar estado actual para la pantalla de escenario
+                await setDoc(doc(db, "fiesta_musical", "estado_actual"), {
+                    cancion: datosTema.cancion,
+                    pedidoPor: datosTema.pedidoPor
+                });
+
+                // Borrar el tema de la colección raíz de pendientes
+                await deleteDoc(doc(db, "cola_reproduccion", primerDoc.id));
+
+            } catch (error) {
+                console.error("Error al pasar al siguiente tema: ", error);
+                alert("Hubo un error al avanzar de tema.");
+            }
         }
-
-        const primerDoc = querySnapshot.docs[0];
-        const datosTema = primerDoc.data();
-
-        // Actualizar estado actual para la pantalla de escenario
-        await setDoc(doc(db, "fiesta_musical", "estado_actual"), {
-            cancion: datosTema.cancion,
-            pedidoPor: datosTema.pedidoPor
-        });
-
-        // Borrar el tema de la cola raíz de pendientes
-        await deleteDoc(doc(db, "cola_reproduccion", primerDoc.id));
-
-    } catch (error) {
-        console.error("Error al pasar al siguiente tema: ", error);
-        alert("Hubo un error al avanzar de tema.");
-    }
-}
     </script>
 </body>
 </html>
