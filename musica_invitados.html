@@ -128,11 +128,11 @@
             }
 
             try {
-                await addDoc(collection(db, "fiesta_musical", "cola_reproduccion"), {
-                    cancion: tema,
-                    pedidoPor: nombre,
-                    timestamp: serverTimestamp()
-                });
+                await addDoc(collection(db, "cola_reproduccion"), {
+    cancion: tema,
+    pedidoPor: nombre,
+    timestamp: serverTimestamp()
+});
 
                 document.getElementById('mensaje').innerText = "¡Tema enviado con éxito a la cola! 🎶";
                 document.getElementById('busquedaTema').value = '';
