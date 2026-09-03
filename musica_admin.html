@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - Control Total de la Fiesta</title>
-    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <title>Panel Admin - Control de Fases DJ</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
@@ -12,31 +11,32 @@
         h2 { color: #1db954; border-bottom: 2px solid #333; padding-bottom: 8px; margin-top: 0; }
         ul { padding-left: 20px; }
         li { background: #2a2a2a; margin: 8px 0; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        button { background: #1db954; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        button { background: #1db954; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; margin: 5px; }
         button:hover { background: #1ed760; }
         button.skip { background: #e91e63; }
-        .modo-btn { background: #555; margin-right: 5px; }
-        .modo-btn.activo { background: #7f00ff; }
+        .fase-btn { background: #444; }
+        .fase-btn.activo { background: #ff9800; color: #000; }
         .current-track-info { font-size: 18px; font-weight: bold; color: #ffeb3b; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🎛️ Panel de Control - DJ Fiesta Admin</h1>
+        <h1>🎛️ Panel de Control - Fases de la Fiesta</h1>
 
-        <!-- Control de Modos (Música, Trivia, Votación) -->
+        <!-- Control de Bloques / Fases Musicales -->
         <div class="card">
-            <h2>🎮 Cambiar Modo de la Fiesta (Pantallas de Invitados)</h2>
-            <p style="color: #aaa; font-size: 14px;">Hacé clic para cambiar lo que ven los invitados en sus celulares al escanear el QR:</p>
-            <div>
-                <button id="btnMusica" class="modo-btn" onclick="cambiarModo('musica')">🎵 Modo Música</button>
-                <button id="btnTrivia" class="modo-btn" onclick="cambiarModo('trivia')">🧠 Modo Trivia</button>
-                <button id="btnVotacion" class="modo-btn" onclick="cambiarModo('votacion')">🎤 Modo Votación</button>
+            <h2>🎚️ Control de Bloque Temático (Pantallas de Invitados)</h2>
+            <p style="color: #aaa; font-size: 14px;">Elegí qué momento de la noche querés activar para ordenar los pedidos de la gente:</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <button id="btnChill" class="fase-btn" onclick="cambiarFase('chill')">🍔 Comida / Ambient</button>
+                <button id="btnRock" class="fase-btn" onclick="cambiarFase('rock')">🎸 Rock Nacional</button>
+                <button id="btn80s" class="fase-btn" onclick="cambiarFase('80s')">🕺 Retro / 80s & 90s</button>
+                <button id="btnFiesta" class="fase-btn" onclick="cambiarFase('fiesta')">🎉 Bailable / Fiesta</button>
             </div>
         </div>
 
-        <!-- Reproductor Actual -->
+        <!-- Reproductor / Tema Actual -->
         <div class="card">
             <h2>Sonando Ahora</h2>
             <div class="current-track-info" id="temaActual">▶️ Cargando estado actual...</div>
@@ -54,7 +54,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
@@ -69,26 +69,27 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Cambiar el modo de la fiesta en Firestore
-        window.cambiarModo = async function(nuevoModo) {
+        // Cambiar la fase musical en Firestore
+        window.cambiarFase = async function(nuevaFase) {
             try {
-                await setDoc(doc(db, "fiesta_musical", "modo_interactivo"), {
-                    modo: nuevoModo
+                await setDoc(doc(db, "fiesta_musical", "bloque_musical"), {
+                    fase: nuevaFase
                 }, { merge: true });
-                alert(`¡Modo cambiado a: ${nuevoModo.toUpperCase()}! 🚀`);
+                alert(`¡Bloque cambiado a: ${nuevaFase.toUpperCase()}! 🚀`);
             } catch (error) {
-                console.error("Error al cambiar modo:", error);
+                console.error("Error al cambiar fase:", error);
             }
         }
 
         // Resaltar el botón activo según Firebase
-        onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
+        onSnapshot(doc(db, "fiesta_musical", "bloque_musical"), (docSnap) => {
             if (docSnap.exists()) {
-                const modo = docSnap.data().modo || "musica";
-                document.querySelectorAll('.modo-btn').forEach(b => b.classList.remove('activo'));
-                if (modo === 'trivia') document.getElementById('btnTrivia').classList.add('activo');
-                else if (modo === 'votacion') document.getElementById('btnVotacion').classList.add('activo');
-                else document.getElementById('btnMusica').classList.add('activo');
+                const fase = docSnap.data().fase || "fiesta";
+                document.querySelectorAll('.fase-btn').forEach(b => b.classList.remove('activo'));
+                if (fase === 'chill') document.getElementById('btnChill').classList.add('activo');
+                else if (fase === 'rock') document.getElementById('btnRock').classList.add('activo');
+                else if (fase === '80s') document.getElementById('btn80s').classList.add('activo');
+                else if (fase === 'fiesta') document.getElementById('btnFiesta').classList.add('activo');
             }
         });
 
