@@ -44,10 +44,7 @@
             box-shadow: 0 0 50px rgba(0,255,127,0.3);
             margin-bottom: 15px;
         }
-        #youtube-player {
-            width: 100%;
-            height: 100%;
-        }
+        #youtube-player { width: 100%; height: 100%; }
         .info-card {
             background: rgba(255,255,255,0.05);
             padding: 12px 25px;
@@ -56,7 +53,6 @@
         }
         h2 { font-size: 26px; margin: 4px 0; color: #ffeb3b; }
         p { font-size: 18px; margin: 0; color: #aaa; }
-        
         .footer-publi { 
             background: #111; 
             padding: 12px; 
@@ -72,7 +68,6 @@
     <div class="header">🎉 FIESTA EN VIVO - DJ INTERACTIVO 🎉</div>
 
     <div class="centro">
-        <!-- Contenedor del Reproductor de YouTube -->
         <div class="player-container">
             <div id="youtube-player"></div>
         </div>
@@ -83,11 +78,8 @@
         </div>
     </div>
 
-    <div class="footer-publi">
-        📢 ¡Transmitiendo en vivo para todo el salón!
-    </div>
+    <div class="footer-publi">📢 ¡Transmitiendo en vivo para todo el salón!</div>
 
-    <!-- API de YouTube e integración con Firebase -->
     <script src="https://www.youtube.com/iframe_api"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -107,65 +99,30 @@
         const db = getFirestore(app);
 
         let player;
-        let videoIdPorDefecto = "jfKfPfyJRdk"; // Video de respaldo inicial
-
-        // Diccionario rápido para mapear nuestros temas fijos a IDs reales de YouTube
-        const mapaVideos = {
-            "Jazz Instrumental - Smooth Lounge": "Dx5qOlaDxgg",
-            "Bossa Nova - Acústico Relajado": "cU90s7wKxtg",
-            "Norah Jones - Come Away With Me": "lbjZTmpVvCo",
-            "Frank Sinatra - Fly Me To The Moon": "mQR0bXO_yI8",
-            "Soda Stereo - De música ligera": "P6sfTlu0ERs",
-            "Los Redondos - Jijiji": "5sA9z1W2s5c",
-            "La Renga - La balada del diablo y la muerte": "7rL-4xGjJ40",
-            "Charly García - Demoliendo hoteles": "3iV8h8t0g5k",
-            "Michael Jackson - Billie Jean": "Zi_XLOBDo_Y",
-            "Depeche Mode - Enjoy The Silence": "aGSsqsKq03Q",
-            "Soda Stereo - Persiana americana": "68W3m1_106M",
-            "Madonna - Material Girl": "DNS_tPnbwuc",
-            "Babasónicos - Irresponsables": "6fJqM9hF8k4",
-            "Miranda - Don": "99B2X2s5X10",
-            "Callejeros - Prohibido": "7u1W3s8Y9z0",
-            "Akt - Cumbia / Reggaetón Mix": "8t4k5s6Y7z1"
-        };
+        let videoIdPorDefecto = "jfKfPfyJRdk"; // Video comodín inicial
 
         window.onYouTubeIframeAPIReady = function() {
             player = new YT.Player('youtube-player', {
                 height: '100%',
                 width: '100%',
                 videoId: videoIdPorDefecto,
-                playerVars: {
-                    'autoplay': 1,
-                    'controls': 1,
-                    'rel': 0
-                }
+                playerVars: { 'autoplay': 1, 'controls': 1, 'rel': 0 }
             });
         };
 
-        // Escuchar en tiempo real el documento "estado_actual" en Firebase
+        // Escuchar el estado actual que manda el admin
         onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const cancionTexto = data.cancion || "Silencio en la pista";
                 const solicitante = data.pedidoPor || "Invitado";
+                const ytId = data.youtubeId || "jfKfPfyJRdk";
                 
-                // Actualizar textos en pantalla
                 document.getElementById("tituloTema").innerText = `🎵 ${cancionTexto}`;
                 document.getElementById("pedidoPor").innerText = `Pedido por: ${solicitante}`;
 
-                // Buscar si el tema tiene un ID de YouTube asociado en nuestro mapa
-                // (Limpiamos el texto por si viene con el emoji "🎵 ")
-                const nombreLimpio = cancionTexto.replace("🎵 ", "").trim();
-                let idVideo = mapaVideos[nombreLimpio];
-
-                // Si no está exacto en el diccionario, usamos uno por defecto o buscamos aproximar
-                if (!idVideo) {
-                    idVideo = "jfKfPfyJRdk"; // Video comodín si no lo encuentra
-                }
-
-                // Disparar la reproducción automática en el reproductor de YouTube si ya está cargado
                 if (player && typeof player.loadVideoById === 'function') {
-                    player.loadVideoById(idVideo);
+                    player.loadVideoById(ytId);
                 }
             }
         });
