@@ -121,18 +121,15 @@
             });
         };
 
-        // Escuchar cambios en el documento estado_actual usando los nombres exactos de tus campos
+        // Escuchar cambios en el documento estado_actual usando los nombres correctos de los campos
         onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const cancion = data.temasonando || "Silencio en la pista";
+                const cancion = data.cancion || "Silencio en la pista";
+                const solicitante = data.pedidoPor || "Invitado";
                 
-                document.getElementById("tituloTema").innerText = cancion;
-                document.getElementById("pedidoPor").innerText = "🎶 Sonando en vivo en el salón";
-
-                // Si querés buscar o cargar dinámicamente un video de YouTube basado en el texto de `temasonando`
-                // (Nota: Como YouTube requiere un ID de video específico para el embed, acá podés mapearlo o usar una búsqueda directa).
-                console.log("Nuevo tema sonando:", cancion);
+                document.getElementById("tituloTema").innerText = `🎵 ${cancion}`;
+                document.getElementById("pedidoPor").innerText = `Pedido por: ${solicitante}`;
             }
         });
     </script>
