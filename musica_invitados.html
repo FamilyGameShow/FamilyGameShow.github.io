@@ -50,11 +50,11 @@
             <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
         </div>
 
-        <!-- SECCIÓN MÚSICA (Carga dinámica desde sets_musicales) -->
+        <!-- SECCIÓN MÚSICA -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
-                <div id="nombreMomento">Cargando set musical...</div>
-                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema del set:</p>
+                <div id="nombreMomento">Esperando al DJ...</div>
+                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema del set habilitado:</p>
                 <div class="lista-container" id="listaOpcionesTema"></div>
                 <p id="mensaje"></p>
             </div>
@@ -110,8 +110,8 @@
             return 0;
         }
 
-        // Cargar el set "jazz_covers" directo de Firebase
-        async function cargarSetMusical() {
+        // Cargar dinámicamente el set "jazz_covers" usando getDoc (con getDoc importado correctamente)
+        async function cargarSetJazzDesdeFirebase() {
             try {
                 const docRef = doc(db, "sets_musicales", "jazz_covers");
                 const docSnap = await getDoc(docRef);
@@ -144,15 +144,15 @@
                         contenedor.appendChild(btn);
                     });
                 } else {
-                    document.getElementById("nombreMomento").innerText = "Set musical no encontrado.";
+                    document.getElementById("nombreMomento").innerText = "Set musical no encontrado en Firebase.";
                 }
             } catch (error) {
                 console.error("Error al cargar set:", error);
-                document.getElementById("nombreMomento").innerText = "Error al conectar con la base de datos.";
+                document.getElementById("nombreMomento").innerText = "Error de conexión con Firebase.";
             }
         }
 
-        // Escuchar el cambio de Modo (Música / Trivia / Votación)
+        // S escuchar el modo interactivo con onSnapshot como tenías originalmente
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const modo = docSnap.data().modo || "musica";
@@ -163,11 +163,12 @@
                     document.getElementById('seccionVotacion').classList.add('activa');
                 } else {
                     document.getElementById('seccionMusica').classList.add('activa');
-                    cargarSetMusical();
+                    cargarSetJazzDesdeFirebase(); // Carga los temas al entrar a música
                 }
             }
         });
 
+        // Enviar el tema con su URL y segundos al escenario
         window.enviarTemaSet = async function(nombreTema, segundosInicio, urlVideo) {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             if (!nombre) {
@@ -202,8 +203,8 @@
             document.getElementById('mensajeVoto').innerText = `¡Voto para ${cand} registrado! 🎤`;
         };
 
-        // Carga inicial
-        cargarSetMusical();
+        // Ejecutar carga inicial por defecto
+        cargarSetJazzDesdeFirebase();
     </script>
 </body>
 </html>
