@@ -34,7 +34,7 @@
         .btn-opcion { background: #7f00ff; color: white; font-weight: bold; cursor: pointer; margin: 6px 0; }
         .btn-opcion:hover { background: #9c27b0; }
         #mensaje { color: #1db954; font-weight: bold; margin-top: 10px; }
-        #nombreBloque { color: #ffeb3b; font-size: 20px; margin-bottom: 15px; }
+        #nombreBloque { color: #ffeb3b; font-size: 20px; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -48,7 +48,7 @@
 
         <div class="card">
             <div id="nombreBloque">Cargando momento de la fiesta...</div>
-            <p style="color: #aaa; font-size: 14px;">Elegí un tema del bloque actual:</p>
+            <p style="color: #aaa; font-size: 14px;">Elegí un tema del bloque actual habilitado por el DJ:</p>
             <div id="listaOpciones">
                 <!-- Las opciones cambian dinámicamente según el bloque -->
             </div>
@@ -73,7 +73,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Repertorios organizados por bloques temáticos
+        // Repertorios organizados por los bloques exactos del Admin
         const repertoriosPorBloque = {
             chill: [
                 "Jazz Instrumental - Smooth Lounge",
@@ -102,15 +102,15 @@
         };
 
         const titulosBloque = {
-            chill: "🍔 Momento Comida & Chill",
+            chill: "🍔 Momento Comida / Chill",
             rock: "🎸 Bloque de Rock Nacional",
             "80s": "🕺 Hits Retro / 80s & 90s",
             fiesta: "🎉 ¡Momento Bailable & Fiesta!"
         };
 
-        // Escuchar el bloque activo en tiempo real desde Firebase
+        // Escuchar el documento "bloque_musical" en tiempo real desde Firebase
         onSnapshot(doc(db, "fiesta_musical", "bloque_musical"), (docSnap) => {
-            let faseActual = "fiesta"; // Por defecto
+            let faseActual = "fiesta"; // Valor por defecto
             if (docSnap.exists() && docSnap.data().fase) {
                 faseActual = docSnap.data().fase;
             }
