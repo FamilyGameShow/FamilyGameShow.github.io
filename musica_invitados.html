@@ -49,14 +49,12 @@
             <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
         </div>
 
-        <!-- SECCIÓN MÚSICA (Se adapta sola al momento que elija el DJ) -->
+        <!-- SECCIÓN MÚSICA -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
-                <div id="nombreMomento">Cargando momento de la fiesta...</div>
-                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí una canción habilitada por el DJ:</p>
-                <div id="listaOpcionesTema">
-                    <!-- Los temas del momento activo cargan acá solos -->
-                </div>
+                <div id="nombreMomento">Esperando al DJ...</div>
+                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema habilitado para este momento:</p>
+                <div id="listaOpcionesTema"></div>
                 <p id="mensaje"></p>
             </div>
         </div>
@@ -102,11 +100,32 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // Repertorios con título y su ID de YouTube exacto
         const repertorios = {
-            chill: ["Jazz Instrumental - Smooth Lounge", "Bossa Nova - Acústico Relajado", "Norah Jones - Come Away With Me", "Frank Sinatra - Fly Me To The Moon"],
-            rock: ["Soda Stereo - De música ligera", "Los Redondos - Jijiji", "La Renga - La balada del diablo y la muerte", "Charly García - Demoliendo hoteles"],
-            "80s": ["Michael Jackson - Billie Jean", "Depeche Mode - Enjoy The Silence", "Soda Stereo - Persiana americana", "Madonna - Material Girl"],
-            fiesta: ["Babasónicos - Irresponsables", "Miranda - Don", "Callejeros - Prohibido", "Akt - Cumbia / Reggaetón Mix"]
+            chill: [
+                { titulo: "Jazz Instrumental - Smooth Lounge", ytId: "Dx5qOlaDxgg" },
+                { titulo: "Bossa Nova - Acústico Relajado", ytId: "cU90s7wKxtg" },
+                { titulo: "Norah Jones - Come Away With Me", ytId: "lbjZTmpVvCo" },
+                { titulo: "Frank Sinatra - Fly Me To The Moon", ytId: "mQR0bXO_yI8" }
+            ],
+            rock: [
+                { titulo: "Soda Stereo - De música ligera", ytId: "P6sfTlu0ERs" },
+                { titulo: "Los Redondos - Jijiji", ytId: "5sA9z1W2s5c" },
+                { titulo: "La Renga - La balada del diablo y la muerte", ytId: "7rL-4xGjJ40" },
+                { titulo: "Charly García - Demoliendo hoteles", ytId: "3iV8h8t0g5k" }
+            ],
+            "80s": [
+                { titulo: "Michael Jackson - Billie Jean", ytId: "Zi_XLOBDo_Y" },
+                { titulo: "Depeche Mode - Enjoy The Silence", ytId: "aGSsqsKq03Q" },
+                { titulo: "Soda Stereo - Persiana americana", ytId: "68W3m1_106M" },
+                { titulo: "Madonna - Material Girl", ytId: "DNS_tPnbwuc" }
+            ],
+            fiesta: [
+                { titulo: "Babasónicos - Irresponsables", ytId: "6fJqM9hF8k4" },
+                { titulo: "Miranda - Don", ytId: "99B2X2s5X10" },
+                { titulo: "Callejeros - Prohibido", ytId: "7u1W3s8Y9z0" },
+                { titulo: "Akt - Cumbia / Reggaetón Mix", ytId: "8t4k5s6Y7z1" }
+            ]
         };
 
         const titulosBloque = {
@@ -116,46 +135,40 @@
             fiesta: "🎉 ¡Momento Bailable & Fiesta!"
         };
 
-        // 1. Escuchar el Momento Musical que activa el Admin
         onSnapshot(doc(db, "fiesta_musical", "bloque_musical"), (docSnap) => {
             let fase = "fiesta";
             if (docSnap.exists() && docSnap.data().fase) {
                 fase = docSnap.data().fase;
             }
-            renderizarTemasParaInvitados(fase);
+            renderizarTemas(fase);
         });
 
-        function renderizarTemasParaInvitados(fase) {
+        function renderizarTemas(fase) {
             document.getElementById("nombreMomento").innerText = titulosBloque[fase] || "🎉 Fiesta en Vivo";
             const contenedor = document.getElementById('listaOpcionesTema');
             contenedor.innerHTML = "";
             const temas = repertorios[fase] || repertorios["fiesta"];
 
-            temas.forEach(tema => {
+            temas.forEach(item => {
                 const btn = document.createElement("button");
                 btn.classList.add("btn-opcion");
-                btn.innerText = `🎵 ${tema}`;
-                btn.onclick = () => enviarTema(tema);
+                btn.innerText = `🎵 ${item.titulo}`;
+                btn.onclick = () => enviarTema(item.titulo, item.ytId);
                 contenedor.appendChild(btn);
             });
         }
 
-        // 2. Escuchar el Modo Principal (Música / Trivia / Votación)
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const modo = docSnap.data().modo || "musica";
                 document.querySelectorAll('.seccion').forEach(el => el.classList.remove('activa'));
-                if (modo === "trivia") {
-                    document.getElementById('seccionTrivia').classList.add('activa');
-                } else if (modo === "votacion") {
-                    document.getElementById('seccionVotacion').classList.add('activa');
-                } else {
-                    document.getElementById('seccionMusica').classList.add('activa');
-                }
+                if (modo === "trivia") document.getElementById('seccionTrivia').classList.add('activa');
+                else if (modo === "votacion") document.getElementById('seccionVotacion').classList.add('activa');
+                else document.getElementById('seccionMusica').classList.add('activa');
             }
         });
 
-        window.enviarTema = async function(tema) {
+        window.enviarTema = async function(titulo, ytId) {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             if (!nombre) {
                 alert("Por favor ingresá tu nombre o apodo antes de pedir un tema.");
@@ -164,12 +177,13 @@
 
             try {
                 await addDoc(collection(db, "cola_reproduccion"), {
-                    cancion: tema,
+                    cancion: titulo,
+                    youtubeId: ytId,
                     pedidoPor: nombre,
                     timestamp: serverTimestamp()
                 });
 
-                document.getElementById('mensaje').innerText = `¡Enviado: "${tema}"! 🎶`;
+                document.getElementById('mensaje').innerText = `¡Enviado: "${titulo}"! 🎶`;
                 setTimeout(() => { document.getElementById('mensaje').innerText = ""; }, 3000);
             } catch (error) {
                 console.error("Error al enviar tema:", error);
@@ -177,15 +191,15 @@
             }
         }
 
-        window.enviarRespuestaTrivia = function(op) {
+        window.enviarRespuestaTrivia = (op) => {
             const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
             document.getElementById('mensajeTrivia').innerText = `¡Opción ${op} registrada para ${nombre}! 🧠`;
-        }
+        };
 
-        window.votarCantante = function(cand) {
+        window.votarCantante = (cand) => {
             const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
             document.getElementById('mensajeVoto').innerText = `¡Voto para ${cand} registrado! 🎤`;
-        }
+        };
     </script>
 </body>
 </html>
