@@ -3,203 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DJ Fiesta - Pedí tu tema</title>
+    <title>Fiesta Musical - Jazz Covers</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #121212; 
-            color: #fff; 
-            margin: 0; 
-            padding: 20px; 
-            text-align: center;
-        }
-        .container { max-width: 500px; margin: auto; }
-        .card { 
-            background: #1e1e1e; 
-            padding: 20px; 
-            border-radius: 12px; 
-            margin-bottom: 20px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
-        }
-        input, button { 
-            width: 100%; 
-            padding: 14px; 
-            margin: 8px 0; 
-            border-radius: 8px; 
-            border: none; 
-            font-size: 16px; 
-            box-sizing: border-box;
-        }
-        input { background: #2a2a2a; color: #fff; }
-        .btn-opcion { background: #7f00ff; color: white; font-weight: bold; cursor: pointer; }
-        .btn-opcion:hover { background: #9c27b0; }
-
-        .seccion { display: none; }
-        .activa { display: block; }
-        #mensaje { color: #1db954; font-weight: bold; margin-top: 10px; }
-        #nombreMomento { color: #ffeb3b; font-size: 20px; margin-bottom: 15px; font-weight: bold; }
+        body { font-family: sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #1DB954; }
+        .lista-canciones { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; margin-top: 20px; }
+        .item-cancion { display: flex; justify-content: space-between; align-items: center; background: #181818; padding: 12px 15px; border-radius: 8px; border: 1px solid #282828; }
+        .info-tema { display: flex; gap: 15px; align-items: center; }
+        .titulo { font-size: 0.95rem; }
+        .btn-pedir { background: transparent; border: 1px solid #1DB954; color: #1DB954; padding: 6px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; }
+        .btn-pedir:hover { background: #1DB954; color: black; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1DB954; color: black; padding: 10px 20px; border-radius: 20px; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>🎵 Fiesta Interactiva 🎉</h1>
+    <h1 id="tituloSet">Cargando set musical...</h1>
+    <div class="lista-canciones" id="listaCanciones"></div>
 
-        <div class="card">
-            <input type="text" id="nombreUsuario" placeholder="Tu nombre o apodo (Ej: Tito)">
-        </div>
-
-        <!-- SECCIÓN MÚSICA -->
-        <div id="seccionMusica" class="seccion activa">
-            <div class="card">
-                <div id="nombreMomento">Esperando al DJ...</div>
-                <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema habilitado para este momento:</p>
-                <div id="listaOpcionesTema"></div>
-                <p id="mensaje"></p>
-            </div>
-        </div>
-
-        <!-- SECCIÓN TRIVIA -->
-        <div id="seccionTrivia" class="seccion">
-            <div class="card">
-                <h2>🧠 ¡Pregunta Flash de la Noche!</h2>
-                <p style="font-size: 18px; color: #ffeb3b;">¿De qué año es este tema?</p>
-                <button class="btn-opcion" onclick="enviarRespuestaTrivia(1)">Opción 1</button>
-                <button class="btn-opcion" onclick="enviarRespuestaTrivia(2)">Opción 2</button>
-                <button class="btn-opcion" onclick="enviarRespuestaTrivia(3)">Opción 3</button>
-                <p id="mensajeTrivia" style="color: #00e676; font-weight: bold; margin-top: 10px;"></p>
-            </div>
-        </div>
-
-        <!-- SECCIÓN VOTACIÓN -->
-        <div id="seccionVotacion" class="seccion">
-            <div class="card">
-                <h2>🎤 ¿Quién cantó mejor?</h2>
-                <p style="color: #aaa;">Votá a tu favorito:</p>
-                <button class="btn-opcion" onclick="votarCantante('Participante A')">Participante A</button>
-                <button class="btn-opcion" onclick="votarCantante('Participante B')">Participante B</button>
-                <p id="mensajeVoto" style="color: #ff5252; font-weight: bold; margin-top: 10px;"></p>
-            </div>
-        </div>
-    </div>
+    <div class="toast" id="toastMensaje">¡Tema pedido con éxito!</div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        // Usá las mismas credenciales de tu proyecto family-game-show
         const firebaseConfig = {
-            apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
+            apiKey: "TU_API_KEY",
             authDomain: "family-game-show.firebaseapp.com",
             projectId: "family-game-show",
-            storageBucket: "family-game-show.firebasestorage.app",
-            messagingSenderId: "509983775898",
-            appId: "1:509983775898:web:47695f5b312553d9bd1323",
-            measurementId: "G-P941BVG2ST"
+            storageBucket: "family-game-show.appspot.com",
+            messagingSenderId: "TU_SENDER_ID",
+            appId: "TU_APP_ID"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Repertorios con título y su ID de YouTube exacto
-        const repertorios = {
-            chill: [
-                { titulo: "Jazz Instrumental - Smooth Lounge", ytId: "Dx5qOlaDxgg" },
-                { titulo: "Bossa Nova - Acústico Relajado", ytId: "cU90s7wKxtg" },
-                { titulo: "Norah Jones - Come Away With Me", ytId: "lbjZTmpVvCo" },
-                { titulo: "Frank Sinatra - Fly Me To The Moon", ytId: "mQR0bXO_yI8" }
-            ],
-            rock: [
-                { titulo: "Soda Stereo - De música ligera", ytId: "P6sfTlu0ERs" },
-                { titulo: "Los Redondos - Jijiji", ytId: "5sA9z1W2s5c" },
-                { titulo: "La Renga - La balada del diablo y la muerte", ytId: "7rL-4xGjJ40" },
-                { titulo: "Charly García - Demoliendo hoteles", ytId: "3iV8h8t0g5k" }
-            ],
-            "80s": [
-                { titulo: "Michael Jackson - Billie Jean", ytId: "Zi_XLOBDo_Y" },
-                { titulo: "Depeche Mode - Enjoy The Silence", ytId: "aGSsqsKq03Q" },
-                { titulo: "Soda Stereo - Persiana americana", ytId: "68W3m1_106M" },
-                { titulo: "Madonna - Material Girl", ytId: "DNS_tPnbwuc" }
-            ],
-            fiesta: [
-                { titulo: "Babasónicos - Irresponsables", ytId: "6fJqM9hF8k4" },
-                { titulo: "Miranda - Don", ytId: "99B2X2s5X10" },
-                { titulo: "Callejeros - Prohibido", ytId: "7u1W3s8Y9z0" },
-                { titulo: "Akt - Cumbia / Reggaetón Mix", ytId: "8t4k5s6Y7z1" }
-            ]
-        };
+        let urlVideoGlobal = "";
 
-        const titulosBloque = {
-            chill: "🍔 Momento Comida / Chill",
-            rock: "🎸 Bloque de Rock Nacional",
-            "80s": "🕺 Hits Retro / 80s & 90s",
-            fiesta: "🎉 ¡Momento Bailable & Fiesta!"
-        };
+        async function cargarDatos() {
+            try {
+                const docRef = doc(db, "sets_musicales", "jazz_covers");
+                const docSnap = await getDoc(docRef);
 
-        onSnapshot(doc(db, "fiesta_musical", "bloque_musical"), (docSnap) => {
-            let fase = "fiesta";
-            if (docSnap.exists() && docSnap.data().fase) {
-                fase = docSnap.data().fase;
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    document.getElementById('tituloSet').innerText = `🎵 ${data.nombre || 'Jazz Covers'}`;
+                    urlVideoGlobal = data.youtubeurl || "";
+                    
+                    renderizarLista(data.canciones || []);
+                } else {
+                    document.getElementById('tituloSet').innerText = "No se encontró el repertorio.";
+                }
+            } catch (error) {
+                console.error("Error al leer Firestore:", error);
+                document.getElementById('tituloSet').innerText = "Error al cargar la base de datos.";
             }
-            renderizarTemas(fase);
-        });
+        }
 
-        function renderizarTemas(fase) {
-            document.getElementById("nombreMomento").innerText = titulosBloque[fase] || "🎉 Fiesta en Vivo";
-            const contenedor = document.getElementById('listaOpcionesTema');
-            contenedor.innerHTML = "";
-            const temas = repertorios[fase] || repertorios["fiesta"];
+        function renderizarLista(canciones) {
+            const contenedor = document.getElementById('listaCanciones');
+            contenedor.innerHTML = '';
 
-            temas.forEach(item => {
-                const btn = document.createElement("button");
-                btn.classList.add("btn-opcion");
-                btn.innerText = `🎵 ${item.titulo}`;
-                btn.onclick = () => enviarTema(item.titulo, item.ytId);
-                contenedor.appendChild(btn);
+            canciones.forEach((cancionTexto) => {
+                const div = document.createElement('div');
+                div.className = 'item-cancion';
+                div.innerHTML = `
+                    <div class="info-tema">
+                        <span class="titulo">${cancionTexto}</span>
+                    </div>
+                    <button class="btn-pedir" onclick="pedirTema('${cancionTexto.replace(/'/g, "\\'")}')">Pedir</button>
+                `;
+                contenedor.appendChild(div);
             });
         }
 
-        onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
-            if (docSnap.exists()) {
-                const modo = docSnap.data().modo || "musica";
-                document.querySelectorAll('.seccion').forEach(el => el.classList.remove('activa'));
-                if (modo === "trivia") document.getElementById('seccionTrivia').classList.add('activa');
-                else if (modo === "votacion") document.getElementById('seccionVotacion').classList.add('activa');
-                else document.getElementById('seccionMusica').classList.add('activa');
-            }
-        });
-
-        window.enviarTema = async function(titulo, ytId) {
-            const nombre = document.getElementById('nombreUsuario').value.trim();
-            if (!nombre) {
-                alert("Por favor ingresá tu nombre o apodo antes de pedir un tema.");
-                return;
-            }
-
+        window.pedirTema = async function(cancion) {
             try {
                 await addDoc(collection(db, "cola_reproduccion"), {
-                    cancion: titulo,
-                    youtubeId: ytId,
-                    pedidoPor: nombre,
-                    timestamp: serverTimestamp()
+                    cancion: cancion,
+                    videoUrl: urlVideoGlobal,
+                    pedidoPor: "Invitado",
+                    timestamp: serverTimestamp(),
+                    estado: "pendiente"
                 });
 
-                document.getElementById('mensaje').innerText = `¡Enviado: "${titulo}"! 🎶`;
-                setTimeout(() => { document.getElementById('mensaje').innerText = ""; }, 3000);
+                mostrarToast(`¡"${cancion}" agregado a la cola!`);
             } catch (error) {
-                console.error("Error al enviar tema:", error);
-                alert("Hubo un error al enviar el pedido.");
+                console.error("Error al guardar el pedido:", error);
+                alert("No se pudo enviar el pedido.");
             }
         }
 
-        window.enviarRespuestaTrivia = (op) => {
-            const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
-            document.getElementById('mensajeTrivia').innerText = `¡Opción ${op} registrada para ${nombre}! 🧠`;
-        };
+        function mostrarToast(mensaje) {
+            const toast = document.getElementById('toastMensaje');
+            toast.innerText = mensaje;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
 
-        window.votarCantante = (cand) => {
-            const nombre = document.getElementById('nombreUsuario').value.trim() || "Anónimo";
-            document.getElementById('mensajeVoto').innerText = `¡Voto para ${cand} registrado! 🎤`;
-        };
+        cargarDatos();
     </script>
 </body>
 </html>
