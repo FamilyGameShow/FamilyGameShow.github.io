@@ -53,7 +53,7 @@
         <!-- SECCIÓN MÚSICA -->
         <div id="seccionMusica" class="seccion activa">
             <div class="card">
-                <div id="nombreMomento">Esperando al DJ...</div>
+                <div id="nombreMomento">Cargando set musical...</div>
                 <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">Elegí un tema del set habilitado:</p>
                 <div class="lista-container" id="listaOpcionesTema"></div>
                 <p id="mensaje"></p>
@@ -101,7 +101,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Función auxiliar para convertir "MM:SS" a segundos totales
+        // Convierte el formato "MM:SS" (ej: "10:26") a segundos totales
         function convertirASegundos(tiempoStr) {
             const partes = tiempoStr.split(":");
             if (partes.length === 2) {
@@ -110,8 +110,8 @@
             return 0;
         }
 
-        // Cargar dinámicamente el set "jazz_covers" usando getDoc (con getDoc importado correctamente)
-        async function cargarSetJazzDesdeFirebase() {
+        // Cargar el documento "jazz_covers" exactamente como lo tenés en tu Firebase
+        async function cargarSetJazz() {
             try {
                 const docRef = doc(db, "sets_musicales", "jazz_covers");
                 const docSnap = await getDoc(docRef);
@@ -134,7 +134,7 @@
                         if (espacioIdx === -1) return;
 
                         const tiempoStr = linea.substring(0, espacioIdx); // Ej: "10:26"
-                        const nombreTema = linea.substring(espacioIdx + 1); // Ej: "Sam Smith..."
+                        const nombreTema = linea.substring(espacioIdx + 1); // Ej: "Sam Smith - I'm Not the Only One"
                         const segundos = convertirASegundos(tiempoStr);
 
                         const btn = document.createElement("button");
@@ -144,15 +144,15 @@
                         contenedor.appendChild(btn);
                     });
                 } else {
-                    document.getElementById("nombreMomento").innerText = "Set musical no encontrado en Firebase.";
+                    document.getElementById("nombreMomento").innerText = "No se encontró el set en Firebase.";
                 }
             } catch (error) {
-                console.error("Error al cargar set:", error);
-                document.getElementById("nombreMomento").innerText = "Error de conexión con Firebase.";
+                console.error("Error al conectar con Firebase:", error);
+                document.getElementById("nombreMomento").innerText = "Error al conectar con la base de datos.";
             }
         }
 
-        // S escuchar el modo interactivo con onSnapshot como tenías originalmente
+        // Escuchar el modo interactivo (Música / Trivia / Votación)
         onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
             if (docSnap.exists()) {
                 const modo = docSnap.data().modo || "musica";
@@ -163,12 +163,11 @@
                     document.getElementById('seccionVotacion').classList.add('activa');
                 } else {
                     document.getElementById('seccionMusica').classList.add('activa');
-                    cargarSetJazzDesdeFirebase(); // Carga los temas al entrar a música
+                    cargarSetJazz();
                 }
             }
         });
 
-        // Enviar el tema con su URL y segundos al escenario
         window.enviarTemaSet = async function(nombreTema, segundosInicio, urlVideo) {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             if (!nombre) {
@@ -203,8 +202,8 @@
             document.getElementById('mensajeVoto').innerText = `¡Voto para ${cand} registrado! 🎤`;
         };
 
-        // Ejecutar carga inicial por defecto
-        cargarSetJazzDesdeFirebase();
+        // Cargar por defecto al abrir la página
+        cargarSetJazz();
     </script>
 </body>
 </html>
