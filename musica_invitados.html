@@ -85,7 +85,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDXyhSScQ4xrwW6YouUHuj7NCLxdqoa8Rc",
@@ -100,7 +100,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Repertorios limpios con título y su ID de YouTube exacto
+        // Repertorios organizados por momentos
         const repertorios = {
             chill: [
                 { titulo: "Jazz Instrumental - Smooth Lounge", ytId: "Dx5qOlaDxgg" },
@@ -153,7 +153,7 @@
                 const btn = document.createElement("button");
                 btn.classList.add("btn-opcion");
                 btn.innerText = `🎵 ${item.titulo}`;
-                btn.onclick = () => enviarTema(item.titulo, item.ytId);
+                btn.onclick = () => enviarTema(item.titulo);
                 contenedor.appendChild(btn);
             });
         }
@@ -168,7 +168,7 @@
             }
         });
 
-        window.enviarTema = async function(titulo, ytId) {
+        window.enviarTema = async function(titulo) {
             const nombre = document.getElementById('nombreUsuario').value.trim();
             if (!nombre) {
                 alert("Por favor ingresá tu nombre o apodo antes de pedir un tema.");
@@ -176,12 +176,11 @@
             }
 
             try {
-                // Guarda exactamente en la colección "cola_reproduccion" que lee tu base de datos
+                // Guarda exactamente con la estructura de campos que usa tu base de datos
                 await addDoc(collection(db, "cola_reproduccion"), {
                     cancion: titulo,
-                    youtubeId: ytId,
-                    pedidopor: nombre, // Coincide exactamente con el campo de tu consola
-                    timestamp: serverTimestamp()
+                    pedidopor: nombre,
+                    timestamp: new Date().getTime().toString()
                 });
 
                 document.getElementById('mensaje').innerText = `¡Enviado: "${titulo}"! 🎶`;
