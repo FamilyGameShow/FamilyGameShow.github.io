@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - Control de Fases DJ</title>
+    <title>Panel Admin - Control Total DJ</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
@@ -11,36 +11,51 @@
         h2 { color: #1db954; border-bottom: 2px solid #333; padding-bottom: 8px; margin-top: 0; }
         ul { padding-left: 20px; }
         li { background: #2a2a2a; margin: 8px 0; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        button { background: #1db954; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; margin: 5px; }
+        button { background: #1db954; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; margin: 4px; }
         button:hover { background: #1ed760; }
         button.skip { background: #e91e63; }
-        .fase-btn { background: #444; }
+        
+        .modo-btn { background: #444; }
+        .modo-btn.activo { background: #7f00ff; }
+        
+        .fase-btn { background: #333; }
         .fase-btn.activo { background: #ff9800; color: #000; }
+        
         .current-track-info { font-size: 18px; font-weight: bold; color: #ffeb3b; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🎛️ Panel de Control - Fases de la Fiesta</h1>
+        <h1>🎛️ Panel de Control - DJ Fiesta Admin</h1>
 
-        <!-- Control de Bloques / Fases Musicales -->
+        <!-- 1. Control del Modo Principal (Música, Trivia, Votación) -->
         <div class="card">
-            <h2>🎚️ Control de Bloque Temático (Pantallas de Invitados)</h2>
-            <p style="color: #aaa; font-size: 14px;">Elegí qué momento de la noche querés activar para ordenar los pedidos de la gente:</p>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                <button id="btnChill" class="fase-btn" onclick="cambiarFase('chill')">🍔 Comida / Ambient</button>
-                <button id="btnRock" class="fase-btn" onclick="cambiarFase('rock')">🎸 Rock Nacional</button>
-                <button id="btn80s" class="fase-btn" onclick="cambiarFase('80s')">🕺 Retro / 80s & 90s</button>
-                <button id="btnFiesta" class="fase-btn" onclick="cambiarFase('fiesta')">🎉 Bailable / Fiesta</button>
+            <h2>🎮 Modo Principal de la Pantalla de Invitados</h2>
+            <div>
+                <button id="btnMusica" class="modo-btn" onclick="cambiarModo('musica')">🎵 Modo Música</button>
+                <button id="btnTrivia" class="modo-btn" onclick="cambiarModo('trivia')">🧠 Modo Trivia</button>
+                <button id="btnVotacion" class="modo-btn" onclick="cambiarModo('votacion')">🎤 Modo Votación</button>
             </div>
         </div>
 
-        <!-- Reproductor / Tema Actual -->
+        <!-- 2. Selector de Momentos Musicales (Solo visible y controlable desde el Admin) -->
+        <div class="card" id="panelMomentos" style="display: block;">
+            <h2>🎧 Elegir Momento Musical en Vivo</h2>
+            <p style="color: #aaa; font-size: 13px;">Hacé clic para habilitar este estilo en los celulares de los invitados:</p>
+            <div>
+                <button id="mChill" class="fase-btn" onclick="cambiarMomentoMusical('chill')">🍔 Comida / Chill</button>
+                <button id="mRock" class="fase-btn" onclick="cambiarMomentoMusical('rock')">🎸 Rock Nacional</button>
+                <button id="m80s" class="fase-btn" onclick="cambiarMomentoMusical('80s')">🕺 Retro / 80s</button>
+                <button id="mFiesta" class="fase-btn" onclick="cambiarMomentoMusical('fiesta')">🎉 Bailable</button>
+            </div>
+        </div>
+
+        <!-- Reproductor Actual -->
         <div class="card">
             <h2>Sonando Ahora</h2>
             <div class="current-track-info" id="temaActual">▶️ Cargando estado actual...</div>
-            <button onclick="siguienteTema()" class="skip" style="width: 100%; margin-top: 10px;">▶️ Reproducer Siguiente Tema de la Cola</button>
+            <button onclick="siguienteTema()" class="skip" style="width: 100%;">▶️ Reproducir Siguiente Tema de la Cola</button>
         </div>
 
         <!-- Cola de Espera -->
@@ -69,31 +84,47 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Cambiar la fase musical en Firestore
-        window.cambiarFase = async function(nuevaFase) {
+        // Cambiar modo principal (Música, Trivia, Votación)
+        window.cambiarModo = async function(nuevoModo) {
             try {
-                await setDoc(doc(db, "fiesta_musical", "bloque_musical"), {
-                    fase: nuevaFase
-                }, { merge: true });
-                alert(`¡Bloque cambiado a: ${nuevaFase.toUpperCase()}! 🚀`);
-            } catch (error) {
-                console.error("Error al cambiar fase:", error);
-            }
+                await setDoc(doc(db, "fiesta_musical", "modo_interactivo"), { modo: nuevoModo }, { merge: true });
+            } catch (error) { console.error("Error al cambiar modo:", error); }
         }
 
-        // Resaltar el botón activo según Firebase
+        // Cambiar el bloque/momento musical que los invitados pueden pedir
+        window.cambiarMomentoMusical = async function(nuevoMomento) {
+            try {
+                await setDoc(doc(db, "fiesta_musical", "bloque_musical"), { fase: nuevoMomento }, { merge: true });
+            } catch (error) { console.error("Error al cambiar momento:", error); }
+        }
+
+        // Sincronizar botones de Modo Activo
+        onSnapshot(doc(db, "fiesta_musical", "modo_interactivo"), (docSnap) => {
+            if (docSnap.exists()) {
+                const modo = docSnap.data().modo || "musica";
+                document.querySelectorAll('.modo-btn').forEach(b => b.classList.remove('activo'));
+                if (modo === 'trivia') document.getElementById('btnTrivia').classList.add('activo');
+                else if (modo === 'votacion') document.getElementById('btnVotacion').classList.add('activo');
+                else document.getElementById('btnMusica').classList.add('activo');
+
+                // Si no está en modo música, ocultar o deshabilitar el panel de momentos opcionalmente
+                document.getElementById('panelMomentos').style.opacity = (modo === 'musica') ? '1' : '0.4';
+            }
+        });
+
+        // Sincronizar botones del Momento Musical activo
         onSnapshot(doc(db, "fiesta_musical", "bloque_musical"), (docSnap) => {
             if (docSnap.exists()) {
                 const fase = docSnap.data().fase || "fiesta";
                 document.querySelectorAll('.fase-btn').forEach(b => b.classList.remove('activo'));
-                if (fase === 'chill') document.getElementById('btnChill').classList.add('activo');
-                else if (fase === 'rock') document.getElementById('btnRock').classList.add('activo');
-                else if (fase === '80s') document.getElementById('btn80s').classList.add('activo');
-                else if (fase === 'fiesta') document.getElementById('btnFiesta').classList.add('activo');
+                if(fase === 'chill') document.getElementById('mChill').classList.add('activo');
+                if(fase === 'rock') document.getElementById('mRock').classList.add('activo');
+                if(fase === '80s') document.getElementById('m80s').classList.add('activo');
+                if(fase === 'fiesta') document.getElementById('mFiesta').classList.add('activo');
             }
         });
 
-        // Mostrar tema actual
+        // Tema actual
         onSnapshot(doc(db, "fiesta_musical", "estado_actual"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -101,7 +132,7 @@
             }
         });
 
-        // Escuchar cola de reproducción raíz
+        // Cola de reproducción
         const qCola = query(collection(db, "cola_reproduccion"), orderBy("timestamp", "asc"));
         onSnapshot(qCola, (snapshot) => {
             const listaCola = document.getElementById("listaCola");
@@ -118,14 +149,10 @@
             });
         });
 
-        // Pasar al siguiente tema
         window.siguienteTema = async function() {
             try {
                 const querySnapshot = await getDocs(query(collection(db, "cola_reproduccion"), orderBy("timestamp", "asc"), limit(1)));
-                if (querySnapshot.empty) {
-                    alert("No hay más temas en la cola.");
-                    return;
-                }
+                if (querySnapshot.empty) { alert("No hay más temas en la cola."); return; }
                 const primerDoc = querySnapshot.docs[0];
                 const datosTema = primerDoc.data();
 
@@ -133,11 +160,8 @@
                     cancion: datosTema.cancion,
                     pedidoPor: datosTema.pedidoPor
                 });
-
                 await deleteDoc(doc(db, "cola_reproduccion", primerDoc.id));
-            } catch (error) {
-                console.error("Error al avanzar tema:", error);
-            }
+            } catch (error) { console.error("Error al avanzar tema:", error); }
         }
     </script>
 </body>
