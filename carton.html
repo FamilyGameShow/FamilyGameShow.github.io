@@ -477,12 +477,20 @@
                 
                 let basePozo = 10000;
                 let recaudacionTotal = totalPagadosContados * precioEntradaShow;
-                let porcentajePremios = 1 - porcentajeGananciaOrganizador;
+                let porcentajePremios = 1 - porcentajeGananciaOrganizador; // 0.70 (70%)
                 let recaudacionParaPremios = recaudacionTotal * porcentajePremios;
 
-                pozoTotalCalculado = Math.max(basePozo, Math.floor(recaudacionParaPremios));
-                pozoLinea1 = Math.floor(pozoTotalCalculado * 0.20);
-                pozoLinea2 = Math.floor(pozoTotalCalculado * 0.15);
+                if (recaudacionParaPremios <= basePozo) {
+                    // Escenario 1: Piso mínimo garantizado
+                    pozoTotalCalculado = basePozo;
+                    pozoLinea1 = Math.floor(basePozo * 0.20);
+                    pozoLinea2 = Math.floor(basePozo * 0.15);
+                } else {
+                    // Escenario 2: Supera el piso, aplica los porcentajes limpios (20% L1, 15% L2, 65% Bingo)
+                    pozoLinea1 = Math.floor(recaudacionParaPremios * 0.20);
+                    pozoLinea2 = Math.floor(recaudacionParaPremios * 0.15);
+                    pozoTotalCalculado = Math.floor(recaudacionParaPremios * 0.65);
+                }
 
                 const lblBingo = document.getElementById('lblMontoPozoBingo');
                 const lblL1 = document.getElementById('lblMontoPozoL1');
@@ -699,10 +707,8 @@
             document.getElementById('cajaCargando').style.display = "block";
             document.getElementById('cajaCargando').innerHTML = "<p>Cargando tu sala de juego...</p>";
 
-            // 15 números para formato oficial apaisado
             tamañoCartonDinamico = 15;
 
-            // BOLSA ESTRICTA: SOLO NÚMEROS DEL 1 AL 60
             let codigosDisponibles = [];
             for(let i = 1; i <= 60; i++) codigosDisponibles.push(String(i));
 
@@ -711,7 +717,6 @@
                 let datosExistentes = docExistenteSnap.data();
                 let nums = (datosExistentes.numeros || []).map(Number);
                 
-                // VERIFICACIÓN DE SEGURIDAD: Si tiene números mayores a 60, se regeneran
                 let tieneNumerosInvalidos = nums.some(n => n > 60 || n < 1 || isNaN(n));
                 if (!tieneNumerosInvalidos && nums.length === 15) {
                     asignarEIniciarCarton(datosExistentes);
@@ -725,7 +730,6 @@
                 if (perfilSnap.exists()) puntosPrevios = perfilSnap.data().puntos || 0;
             } catch(e){}
 
-            // Mezclamos del 1 al 60 y extraemos 15
             let bolsa = [...codigosDisponibles].sort(() => Math.random() - 0.5).slice(0, 15);
             bolsa.sort((a,b) => Number(a) - Number(b));
 
@@ -964,9 +968,9 @@
                 } catch(e){}
 
                 dispararFestejoGanador("LINEA");
-                document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
+                document.getElementById('lblMensajeBloqueo').innerText = `🎉 ¡LÍNEA #${nroLineaOrden} COMPLETADA! Ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`;
                 document.getElementById('lblMensajeBloqueo').style.display = "block"; 
-                alert(`🎉 ¡LÍNEA COMPLETADA!\n¡Sacaste la Línea #${nroLineaOrden} y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
+                alert(`🎉 ¡LÍNEA #${nroLineaOrden} COMPLETADA!\n¡Sacaste la Línea y ganaste $${montoPremioRedondeado.toLocaleString('es-AR')}!`);
             }
 
             // BINGO
@@ -1440,7 +1444,6 @@
         .btn-modo-toggle { background: #1e2d4a; border: 1px solid var(--neon-cyan); color: #fff; padding: 8px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; width: 100%; text-align: center; }
         .btn-modo-toggle.activo { background: var(--neon-cyan); color: #000; }
         
-        /* GRILLA APASADA DEL CARTÓN (5 COLUMNAS EN CELULAR) */
         .grilla-bingo-viva { display: grid; gap: 6px; margin: 8px 0; }
         .casillero-bola { background: #1e2d4a; aspect-ratio: 1.15; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 900; border-radius: 6px; border: 1.5px solid #2a3f64; }
         .marcada-correcta { background: linear-gradient(135deg, #2ec4b6 0%, #00f5d4 100%) !important; color: #000 !important; }
@@ -1449,7 +1452,6 @@
         .video-container-simple { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; border: 1px solid #24344f; margin-bottom: 12px; }
         .video-container-simple iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
         
-        /* CUBIERTA VISUAL CON CARRUSEL DE FOTOS ROTATIVAS */
         .overlay-visual-audio {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1696,7 +1698,6 @@
                 </div>
             </div>
             
-            <!-- GRILLA APASADA DEL CARTÓN (15 NÚMEROS: 3 FILAS X 5 COLUMNAS) -->
             <div class="card-caja">
                 <button class="btn-modo-toggle" id="btnToggleModoMarcado" onclick="toggleModoMarcado()">Modo: Automático ⚡ (Cambiar a Manual ✍️)</button>
                 <div class="grilla-bingo-viva" id="grillaNumerosBingo"></div>
