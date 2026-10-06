@@ -89,9 +89,12 @@
         };
 
         window.seleccionarModalidad = function(tipo) {
+            if (tipo === 'presencial' && modoTransmisionActual !== "vivo") tipo = "casa";
             modalidadElegida = tipo;
             const btnPresencial = document.getElementById('btnModoPresencial');
             const btnCasa = document.getElementById('btnModoCasa');
+            if (!btnPresencial || !btnCasa) return;
+            btnPresencial.style.display = modoTransmisionActual === "vivo" ? "block" : "none";
             if(tipo === 'presencial') {
                 btnPresencial.style.background = "rgba(255,209,102,0.2)";
                 btnPresencial.style.borderColor = "var(--gold)";
@@ -108,6 +111,18 @@
                 btnPresencial.style.color = "#94a3b8";
             }
         };
+
+        function actualizarModalidadSegunTransmision() {
+            const etiquetaModalidad = document.getElementById('lblSelectorModalidad');
+            const soloCasa = modoTransmisionActual !== "vivo";
+            if (soloCasa) modalidadElegida = "casa";
+            if (etiquetaModalidad) {
+                etiquetaModalidad.innerText = soloCasa
+                    ? "Este show se juega desde casa"
+                    : "¿Dónde jugás hoy?";
+            }
+            window.seleccionarModalidad(modalidadElegida);
+        }
 
         // REPRODUCTOR Y CARRUSEL DE FOTOS ROTATIVO
         let modoTransmisionActual = "automatico";
@@ -459,6 +474,7 @@
                     const datosEstado = snapEstado.data();
                     showEnVivoHabilitado = (datosEstado.show_iniciado === true);
                     modoTransmisionActual = datosEstado.modo_transmision || "automatico";
+                    actualizarModalidadSegunTransmision();
                     if (datosEstado.repertorio_activo) idRepertorioAUsar = datosEstado.repertorio_activo;
                     if (datosEstado.link_stream) linkStreamEncontrado = datosEstado.link_stream;
                     if (datosEstado.precio_carton) precioEntradaShow = Number(datosEstado.precio_carton);
@@ -541,6 +557,7 @@
                     const estado = docSnap.data();
                     showEnVivoHabilitado = (estado.show_iniciado === true);
                     modoTransmisionActual = estado.modo_transmision || "automatico";
+                    actualizarModalidadSegunTransmision();
                     numerosSalidos = (estado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10))).filter(n => Number(n) >= 1 && Number(n) <= 60);
                     if (estado.precio_carton) precioEntradaShow = Number(estado.precio_carton);
                     if (estado.porcentaje_ganancia !== undefined) porcentajeGananciaOrganizador = Number(estado.porcentaje_ganancia);
@@ -797,7 +814,16 @@
             triviasRespondidasIds = (data.trivias_respondidas || []).map(n => String(parseInt(n, 10)));
             yaReclameBolaLoca = data.bola_loca_reclamada || false;
             yaCanteLinea = data.linea_reclamada || false;
-            if(data.modalidad) modalidadElegida = data.modalidad;
+            if (modoTransmisionActual !== "vivo") {
+                modalidadElegida = "casa";
+                if (data.modalidad === "presencial") {
+                    updateDoc(doc(db, "cartones_vendidos", infoUsuarioLogueado.dni), { modalidad: "casa" })
+                        .catch(error => console.error("Error actualizando modalidad del cartón:", error));
+                }
+            } else if(data.modalidad) {
+                modalidadElegida = data.modalidad;
+            }
+            actualizarModalidadSegunTransmision();
 
             tamañoCartonDinamico = misNumeros.length; 
             let tamFila = Math.floor(misNumeros.length / 3);
@@ -1654,7 +1680,7 @@
         <input type="text" id="txtDni" placeholder="Tu DNI (o Código)">
         
         <div style="margin-bottom: 12px;">
-            <label style="font-size: 0.75rem; color: #94a3b8; display: block; margin-bottom: 6px;">¿Dónde jugás hoy?</label>
+            <label id="lblSelectorModalidad" style="font-size: 0.75rem; color: #94a3b8; display: block; margin-bottom: 6px;">¿Dónde jugás hoy?</label>
             <div style="display: flex; gap: 8px;">
                 <button type="button" id="btnModoPresencial" onclick="seleccionarModalidad('presencial')" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid var(--gold); background: rgba(255,209,102,0.2); color: var(--gold); font-weight: bold; cursor: pointer;">🪑 En el Salón</button>
                 <button type="button" id="btnModoCasa" onclick="seleccionarModalidad('casa')" style="flex:1; padding: 10px; font-size: 0.75rem; border-radius: 8px; border: 1px solid #2a3f64; background: #0a0e17; color: #94a3b8; font-weight: bold; cursor: pointer;">🏠 Desde Casa</button>
