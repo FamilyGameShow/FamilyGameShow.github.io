@@ -85,11 +85,26 @@
 
     const URL_CARTON_DESTINO = "/carton";
 
+    function formatearFechaShow(fecha) {
+        const fechaObj = new Date(fecha);
+        if (Number.isNaN(fechaObj.getTime())) return String(fecha);
+        return new Intl.DateTimeFormat('es-AR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+            timeZone: 'America/Argentina/Buenos_Aires'
+        }).format(fechaObj);
+    }
+
     function aplicarDatosVisuales(data) {
         if (!data) return;
-        let fechaEncontrada = data.fecha_evento || data.fecha_show || data.fecha_hora || data.fecha || data.dia_show;
+        let fechaEncontrada = data.fecha_show_timestamp || data.fecha_evento || data.fecha_show || data.fecha_hora || data.fecha || data.dia_show;
         if (fechaEncontrada) {
-            FECHA_PROXIMO_SHOW = String(fechaEncontrada);
+            FECHA_PROXIMO_SHOW = formatearFechaShow(fechaEncontrada);
             const lblFecha = document.getElementById('lblFechaShow');
             if (lblFecha) lblFecha.innerText = FECHA_PROXIMO_SHOW;
         }
