@@ -114,6 +114,8 @@
         let ultimaCancionTocadaProcesada = null;
         let urlStreamActualCargada = "";
         let showEnVivoHabilitado = false;
+        let fechaInicioShowTimestamp = null;
+        let modoPreShowVisible = false;
 
         let linkPreShowGlobal = "";
         let linkDespedidaGlobal = "";
@@ -161,7 +163,10 @@
             const overlayVisual = document.getElementById('overlayVisualAudio');
             const lblNum = document.getElementById('lblNumeroShow');
             const lblTema = document.getElementById('lblTemaShow');
+            const lblCuentaRegresiva = document.getElementById('lblCuentaRegresiva');
             if (!iframe) return;
+            modoPreShowVisible = false;
+            if (lblCuentaRegresiva) lblCuentaRegresiva.style.display = "none";
 
             if (modoTransmisionActual === "vivo") {
                 if (overlayVisual) overlayVisual.style.display = "none";
@@ -205,8 +210,10 @@
                 }
             } else {
                 // 3. MODO PRE-SHOW (ESPERA)
+                modoPreShowVisible = true;
                 if (lblNum) lblNum.innerText = "FGS";
-                if (lblTema) lblTema.innerText = "¡El Show comenzará pronto!";
+                if (lblTema) lblTema.innerText = fechaInicioShowTimestamp ? "¡El show comenzará pronto!" : "¡El Show comenzará pronto!";
+                actualizarCuentaRegresiva();
                 
                 let idPre = extraerIdYouTube(linkPreShowGlobal);
                 if (idPre && ultimaCancionTocadaProcesada !== "preshow") {
@@ -214,6 +221,27 @@
                     iframe.src = `https://www.youtube.com/embed/${idPre}?enablejsapi=1&autoplay=1&loop=1&playlist=${idPre}&playsinline=1`;
                 }
             }
+        }
+
+        function actualizarCuentaRegresiva() {
+            const lblCuentaRegresiva = document.getElementById('lblCuentaRegresiva');
+            if (!lblCuentaRegresiva || !modoPreShowVisible || !fechaInicioShowTimestamp) return;
+
+            const restante = fechaInicioShowTimestamp - Date.now();
+            if (restante <= 0) {
+                lblCuentaRegresiva.innerText = "¡El show está por comenzar!";
+                lblCuentaRegresiva.style.display = "block";
+                return;
+            }
+
+            const segundosTotales = Math.floor(restante / 1000);
+            const dias = Math.floor(segundosTotales / 86400);
+            const horas = Math.floor((segundosTotales % 86400) / 3600);
+            const minutos = Math.floor((segundosTotales % 3600) / 60);
+            const segundos = segundosTotales % 60;
+            const tiempo = [horas, minutos, segundos].map(valor => String(valor).padStart(2, '0')).join(':');
+            lblCuentaRegresiva.innerText = dias > 0 ? `Faltan ${dias} d ${tiempo}` : `Faltan ${tiempo}`;
+            lblCuentaRegresiva.style.display = "block";
         }
 
         // DISPARADORES DE FESTEJO Y CONFETI
@@ -369,6 +397,9 @@
         let triviasRespondidasIds = []; 
 
         window.addEventListener('DOMContentLoaded', async () => {
+            window.setInterval(() => {
+                if (modoPreShowVisible) actualizarCuentaRegresiva();
+            }, 1000);
             history.pushState(null, null, location.href);
             window.onpopstate = function () { history.pushState(null, null, location.href); };
             await cargarConfiguracionInicialShow();
@@ -439,6 +470,8 @@
                     linkDespedidaGlobal = datosEstado.link_despedida || "";
                     linkFestejoLineaGlobal = datosEstado.link_festejo_linea || "";
                     linkFestejoBingoGlobal = datosEstado.link_festejo_bingo || "";
+                    const fechaShow = Date.parse(datosEstado.fecha_show_timestamp || datosEstado.fecha_show || "");
+                    fechaInicioShowTimestamp = Number.isNaN(fechaShow) ? null : fechaShow;
 
                     numerosSalidos = (datosEstado.lista_numeros_salidos || []).map(n => String(parseInt(n, 10))).filter(n => Number(n) >= 1 && Number(n) <= 60);
                     actualizarBannerAvisoFlash(datosEstado.aviso_flash);
@@ -517,6 +550,8 @@
                     linkDespedidaGlobal = estado.link_despedida || "";
                     linkFestejoLineaGlobal = estado.link_festejo_linea || "";
                     linkFestejoBingoGlobal = estado.link_festejo_bingo || "";
+                    const fechaShow = Date.parse(estado.fecha_show_timestamp || estado.fecha_show || "");
+                    fechaInicioShowTimestamp = Number.isNaN(fechaShow) ? null : fechaShow;
 
                     actualizarBannerAvisoFlash(estado.aviso_flash);
 
@@ -1490,6 +1525,11 @@
             border-radius: 20px; border: 1px solid rgba(0, 245, 212, 0.4);
             text-shadow: 0 0 8px rgba(0,245,212,0.8);
         }
+        .lbl-cuenta-regresiva {
+            position: relative; z-index: 5; margin-top: 4px;
+            color: var(--gold); font-size: 0.9rem; font-weight: 900;
+            text-align: center; text-shadow: 0 0 8px rgba(255,209,102,0.8);
+        }
 
         .controles-album { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-pagina { padding: 6px 12px; background: #1e2d4a; border: 1px solid #2a3f64; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
@@ -1684,6 +1724,7 @@
                             <span id="lblNumeroShow">00</span>
                         </div>
                         <div id="lblTemaShow" class="lbl-tema-flotante">...</div>
+                        <div id="lblCuentaRegresiva" class="lbl-cuenta-regresiva" style="display:none;"></div>
                         <small style="color: #cbd5e1; margin-top: 4px; z-index: 5; text-shadow: 1px 1px 3px #000;">🔊 En Vivo</small>
                     </div>
                 </div>
