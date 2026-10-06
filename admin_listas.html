@@ -51,6 +51,10 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.id_show_activo) document.getElementById('txtIdShow').value = data.id_show_activo;
+                    if (data.fecha_show_timestamp) {
+                        const fechaLocalArgentina = new Date(Date.parse(data.fecha_show_timestamp) - 3 * 60 * 60 * 1000);
+                        document.getElementById('txtFechaInput').value = fechaLocalArgentina.toISOString().slice(0, 16);
+                    }
                     if (data.link_stream) document.getElementById('txtLinkStream').value = data.link_stream;
                     if (data.lineas_premiadas_max) document.getElementById('selectLineasMax').value = data.lineas_premiadas_max;
                     if (data.numero_clave_noche) document.getElementById('numClaveInput').value = data.numero_clave_noche;
@@ -103,7 +107,7 @@
         window.guardarInfoEvento = async function() {
             const idShow = sanitizarID(document.getElementById('txtIdShow').value);
             const lugar = document.getElementById('txtLugarInput').value.trim();
-            const fecha = document.getElementById('txtFechaInput').value.trim();
+            const fechaLocal = document.getElementById('txtFechaInput').value;
             const linkStream = document.getElementById('txtLinkStream').value.trim();
             const repActivo = document.getElementById('selectRepertorioActivo').value || "lista_prueba";
             const lineasMax = Number(document.getElementById('selectLineasMax').value) || 1;
@@ -112,19 +116,23 @@
             const btn = document.getElementById('btnGuardarEvento');
 
             if (!idShow) { alert("¡Poné un Código Único!"); return; }
+            if (!fechaLocal) { alert("Elegí la fecha y hora del show."); return; }
+            const fechaTimestamp = new Date(`${fechaLocal}:00-03:00`);
+            if (Number.isNaN(fechaTimestamp.getTime())) { alert("La fecha y hora del show no son válidas."); return; }
+            const fechaIso = fechaTimestamp.toISOString();
             btn.innerText = "Guardando..."; btn.disabled = true;
 
             try {
                 const dataConfig = {
-                    id_show: idShow, lugar_evento: lugar, fecha_evento: fecha,
+                    id_show: idShow, lugar_evento: lugar, fecha_evento: fechaIso,
                     link_stream: linkStream, repertorio_activo: repActivo,
                     lineas_premiadas_max: lineasMax, numero_clave_noche: numClave,
-                    porcentaje_ganancia: comision
+                    porcentaje_ganancia: comision, fecha_show_timestamp: fechaIso
                 };
 
                 await setDoc(doc(db, "shows_activos", idShow), dataConfig, { merge: true });
                 await setDoc(doc(db, "estado_show", "actual"), {
-                    id_show_activo: idShow, fecha_show: fecha, link_stream: linkStream,
+                    id_show_activo: idShow, fecha_show: fechaIso, fecha_show_timestamp: fechaIso, link_stream: linkStream,
                     repertorio_activo: repActivo, lineas_premiadas_max: lineasMax,
                     numero_clave_noche: numClave, porcentaje_ganancia: comision
                 }, { merge: true });
@@ -405,7 +413,7 @@
             <input type="text" id="txtIdShow" placeholder="Código Único (ej: show_viernes)">
             <div class="row-grid">
                 <input type="text" id="txtLugarInput" placeholder="Lugar">
-                <input type="text" id="txtFechaInput" placeholder="Fecha">
+                <input type="datetime-local" id="txtFechaInput" aria-label="Fecha y hora del show (hora de Argentina)" title="La hora se interpreta como hora de Argentina (UTC-3)">
             </div>
             <input type="text" id="txtLinkStream" placeholder="Link YouTube Streaming (URL o Embed)">
             
